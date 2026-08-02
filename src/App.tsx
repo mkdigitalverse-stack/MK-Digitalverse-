@@ -26,7 +26,7 @@ export default function App() {
   };
 
   return (
-    <div className="min-h-screen bg-[#0A0D14] text-slate-100 flex flex-col font-sans selection:bg-amber-500/30 selection:text-amber-200">
+    <div className="min-h-screen bg-[#050505] text-[#EDEDED] flex flex-col font-sans selection:bg-amber-500/20 selection:text-amber-200">
       {/* SEO Schema injection */}
       <SeoStructuredData />
 

@@ -9,8 +9,8 @@
 
   body {
     font-family: var(--font-sans);
-    background-color: #0A0D14;
-    color: #F1F5F9;
+    background-color: #050505;
+    color: #EDEDED;
     overflow-x: hidden;
   }
 
@@ -23,21 +23,21 @@
 .bg-grid-pattern {
   background-size: 40px 40px;
   background-image: 
-    linear-gradient(to right, rgba(255, 255, 255, 0.04) 1px, transparent 1px),
-    linear-gradient(to bottom, rgba(255, 255, 255, 0.04) 1px, transparent 1px);
+    linear-gradient(to right, rgba(255, 255, 255, 0.03) 1px, transparent 1px),
+    linear-gradient(to bottom, rgba(255, 255, 255, 0.03) 1px, transparent 1px);
 }
 
 .bg-dots-pattern {
-  background-image: radial-gradient(rgba(255, 255, 255, 0.08) 1px, transparent 1px);
+  background-image: radial-gradient(rgba(255, 255, 255, 0.06) 1px, transparent 1px);
   background-size: 24px 24px;
 }
 
-/* Glassmorphism utility */
+/* Glassmorphism utility - Consulting Firm Aesthetic */
 .glass-panel {
-  background: rgba(15, 23, 42, 0.7);
-  backdrop-filter: blur(12px);
-  -webkit-backdrop-filter: blur(12px);
-  border: 1px solid rgba(255, 255, 255, 0.08);
+  background: rgba(12, 12, 15, 0.7);
+  backdrop-filter: blur(16px);
+  -webkit-backdrop-filter: blur(16px);
+  border: 1px solid rgba(255, 255, 255, 0.07);
 }
 
 .glass-panel-hover {
@@ -45,10 +45,10 @@
 }
 
 .glass-panel-hover:hover {
-  background: rgba(30, 41, 59, 0.8);
-  border-color: rgba(255, 255, 255, 0.18);
+  background: rgba(18, 18, 22, 0.85);
+  border-color: rgba(255, 255, 255, 0.15);
   transform: translateY(-2px);
-  box-shadow: 0 20px 40px -15px rgba(0, 0, 0, 0.5);
+  box-shadow: 0 20px 40px -15px rgba(0, 0, 0, 0.7);
 }
 
 /* Scrollbar polish */
@@ -56,12 +56,12 @@
   width: 8px;
 }
 ::-webkit-scrollbar-track {
-  background: #0A0D14;
+  background: #050505;
 }
 ::-webkit-scrollbar-thumb {
-  background: #1E293B;
+  background: #18181b;
   border-radius: 4px;
 }
 ::-webkit-scrollbar-thumb:hover {
-  background: #334155;
+  background: #27272a;
 }

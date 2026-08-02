@@ -32,20 +32,20 @@ export const GrowthFramework: React.FC<FrameworkProps> = ({ onOpenAuditModal }) 
   };
 
   return (
-    <section id="framework" className="py-20 md:py-28 bg-[#070A0F] relative border-y border-slate-800/80">
+    <section id="framework" className="py-20 md:py-28 bg-[#050505] relative border-y border-white/10">
       <div className="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8">
         
         {/* Header */}
         <div className="text-center max-w-3xl mx-auto mb-16">
-          <div className="inline-flex items-center gap-2 px-3.5 py-1.5 rounded-full bg-emerald-500/10 border border-emerald-500/20 text-emerald-400 text-xs font-bold uppercase tracking-widest mb-4">
-            <Layers className="w-3.5 h-3.5" />
-            <span>The MK Digitalverse Growth Engine</span>
+          <div className="inline-flex items-center gap-2 px-3.5 py-1.5 rounded-full bg-white/5 border border-white/10 text-zinc-300 text-xs font-bold uppercase tracking-widest mb-4">
+            <Layers className="w-3.5 h-3.5 text-amber-400" />
+            <span>Proprietary Framework</span>
           </div>
           <h2 className="text-3xl sm:text-4xl lg:text-5xl font-display font-extrabold text-white tracking-tight">
-            A 5-Stage System Engineered for Revenue
+            The 5-Stage Growth Engineering System
           </h2>
-          <p className="mt-4 text-base sm:text-lg text-slate-300">
-            We don't launch disconnected ad campaigns. We deploy a integrated 5-phase growth engine built to attract, qualify, convert, and scale.
+          <p className="mt-4 text-base sm:text-lg text-zinc-300">
+            We don't launch ad-hoc campaigns. We deploy an integrated 5-phase growth system built to attract, qualify, convert, and scale high-value patient and venue revenue in India.
           </p>
         </div>
 
@@ -59,18 +59,18 @@ export const GrowthFramework: React.FC<FrameworkProps> = ({ onOpenAuditModal }) 
                 onClick={() => setActiveStageId(stage.id)}
                 className={`p-4 rounded-xl text-left transition-all relative border ${
                   isActive
-                    ? 'bg-slate-900 border-amber-500/80 text-white shadow-xl shadow-amber-500/10'
-                    : 'bg-slate-950/60 border-slate-800/80 text-slate-400 hover:text-slate-200 hover:bg-slate-900/60'
+                    ? 'bg-zinc-900 border-white/30 text-white shadow-xl'
+                    : 'bg-zinc-950/80 border-white/10 text-zinc-400 hover:text-zinc-200 hover:bg-zinc-900/60'
                 }`}
               >
                 <div className="flex items-center justify-between mb-2">
                   <span className={`text-[10px] font-extrabold uppercase tracking-widest ${
-                    isActive ? 'text-amber-400' : 'text-slate-500'
+                    isActive ? 'text-amber-400' : 'text-zinc-500'
                   }`}>
                     Phase 0{stage.id}
                   </span>
                   <div className={`p-1.5 rounded-lg ${
-                    isActive ? 'bg-amber-500/20 text-amber-400' : 'bg-slate-800 text-slate-400'
+                    isActive ? 'bg-amber-500/20 text-amber-400' : 'bg-zinc-800 text-zinc-400'
                   }`}>
                     {getStageIcon(stage.icon)}
                   </div>
@@ -82,7 +82,7 @@ export const GrowthFramework: React.FC<FrameworkProps> = ({ onOpenAuditModal }) 
         </div>
 
         {/* Active Stage Detailed Breakdown Panel */}
-        <div className="glass-panel rounded-2xl p-8 border border-slate-800 shadow-2xl relative">
+        <div className="glass-panel rounded-2xl p-8 border border-white/10 shadow-2xl relative bg-[#09090b]">
           <div className="grid grid-cols-1 lg:grid-cols-12 gap-8 items-center">
             
             {/* Left Content Column */}
@@ -99,18 +99,18 @@ export const GrowthFramework: React.FC<FrameworkProps> = ({ onOpenAuditModal }) 
                 </p>
               </div>
 
-              <p className="text-sm text-slate-300 leading-relaxed">
+              <p className="text-sm text-zinc-300 leading-relaxed">
                 {activeStage.description}
               </p>
 
               {/* Deliverables List */}
               <div>
-                <h4 className="text-xs font-bold uppercase tracking-wider text-slate-400 mb-3">
+                <h4 className="text-xs font-bold uppercase tracking-wider text-zinc-400 mb-3">
                   Key System Deliverables:
                 </h4>
                 <div className="grid grid-cols-1 sm:grid-cols-2 gap-2.5">
                   {activeStage.deliverables.map((deliv, idx) => (
-                    <div key={idx} className="flex items-center gap-2 text-xs font-medium text-slate-200 p-2.5 rounded-lg bg-slate-900/80 border border-slate-800/80">
+                    <div key={idx} className="flex items-center gap-2 text-xs font-medium text-zinc-200 p-2.5 rounded-lg bg-zinc-900 border border-white/5">
                       <CheckCircle2 className="w-4 h-4 text-emerald-400 shrink-0" />
                       <span>{deliv}</span>
                     </div>
@@ -120,12 +120,12 @@ export const GrowthFramework: React.FC<FrameworkProps> = ({ onOpenAuditModal }) 
 
               {/* Tech Stack */}
               <div>
-                <span className="text-xs font-bold uppercase tracking-wider text-slate-500 block mb-2">
+                <span className="text-xs font-bold uppercase tracking-wider text-zinc-500 block mb-2">
                   Engine Architecture & Tech:
                 </span>
                 <div className="flex flex-wrap gap-2">
                   {activeStage.techStack.map((tech, idx) => (
-                    <span key={idx} className="px-3 py-1 rounded-md bg-slate-900 border border-slate-800 text-xs font-medium text-amber-300">
+                    <span key={idx} className="px-3 py-1 rounded-md bg-zinc-900 border border-white/10 text-xs font-medium text-amber-300">
                       {tech}
                     </span>
                   ))}
@@ -135,9 +135,9 @@ export const GrowthFramework: React.FC<FrameworkProps> = ({ onOpenAuditModal }) 
             </div>
 
             {/* Right Visual Card */}
-            <div className="lg:col-span-5 bg-gradient-to-br from-slate-900 via-slate-900 to-slate-950 p-6 rounded-2xl border border-slate-800 space-y-4">
-              <div className="flex items-center justify-between pb-4 border-b border-slate-800">
-                <span className="text-xs font-bold uppercase tracking-wider text-slate-400">System Progress</span>
+            <div className="lg:col-span-5 bg-zinc-950 p-6 rounded-2xl border border-white/10 space-y-4">
+              <div className="flex items-center justify-between pb-4 border-b border-white/10">
+                <span className="text-xs font-bold uppercase tracking-wider text-zinc-400">System Progress</span>
                 <span className="text-xs font-bold text-emerald-400">Phase {activeStage.id} of 5 Active</span>
               </div>
 
@@ -149,27 +149,27 @@ export const GrowthFramework: React.FC<FrameworkProps> = ({ onOpenAuditModal }) 
                     className={`p-3 rounded-xl cursor-pointer transition-all flex items-center justify-between ${
                       s.id === activeStageId 
                         ? 'bg-amber-500/10 border border-amber-500/30 text-white' 
-                        : 'hover:bg-slate-800/40 text-slate-400'
+                        : 'hover:bg-white/5 text-zinc-400'
                     }`}
                   >
                     <div className="flex items-center gap-3">
                       <span className={`w-6 h-6 rounded-full text-xs font-bold flex items-center justify-center ${
-                        s.id === activeStageId ? 'bg-amber-500 text-slate-950' : 'bg-slate-800 text-slate-400'
+                        s.id === activeStageId ? 'bg-amber-400 text-black' : 'bg-zinc-800 text-zinc-400'
                       }`}>
                         {s.id}
                       </span>
                       <span className="text-xs font-semibold">{s.subtitle}</span>
                     </div>
-                    <ChevronRight className={`w-4 h-4 ${s.id === activeStageId ? 'text-amber-400' : 'text-slate-600'}`} />
+                    <ChevronRight className={`w-4 h-4 ${s.id === activeStageId ? 'text-amber-400' : 'text-zinc-600'}`} />
                   </div>
                 ))}
               </div>
 
               <button
                 onClick={onOpenAuditModal}
-                className="w-full mt-4 py-3 rounded-xl bg-gradient-to-r from-amber-500 to-emerald-500 text-slate-950 font-bold text-xs uppercase tracking-wider hover:brightness-110 transition-all flex items-center justify-center gap-2"
+                className="w-full mt-4 py-3.5 rounded-xl bg-white text-black font-bold text-xs uppercase tracking-wider hover:bg-zinc-200 active:scale-95 transition-all shadow-md flex items-center justify-center gap-2"
               >
-                <span>Deploy This System For Your Business</span>
+                <span>Deploy System For Your Organization</span>
                 <ArrowRight className="w-4 h-4" />
               </button>
             </div>

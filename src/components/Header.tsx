@@ -40,53 +40,53 @@ export const Header: React.FC<HeaderProps> = ({
     <header 
       className={`fixed top-0 left-0 right-0 z-50 transition-all duration-300 ${
         scrolled 
-          ? 'bg-[#0A0D14]/90 backdrop-blur-md border-b border-slate-800/80 py-3 shadow-2xl shadow-black/50' 
+          ? 'bg-[#050505]/90 backdrop-blur-xl border-b border-white/10 py-3 shadow-2xl shadow-black/80' 
           : 'bg-transparent py-5'
       }`}
     >
       <div className="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8">
         <div className="flex items-center justify-between">
           
-          {/* Logo & Positioning Tagline */}
+          {/* Logo & Executive Brand Tagline */}
           <a href="#" className="flex items-center gap-3 group">
-            <div className="w-10 h-10 rounded-xl bg-gradient-to-br from-amber-500 via-amber-600 to-emerald-600 p-[1px] shadow-lg shadow-amber-500/20 group-hover:shadow-amber-500/40 transition-all">
-              <div className="w-full h-full bg-[#0A0D14] rounded-[11px] flex items-center justify-center">
-                <span className="font-display font-black text-xl text-transparent bg-clip-text bg-gradient-to-r from-amber-400 to-emerald-400">
+            <div className="w-9 h-9 rounded-xl bg-white/10 border border-white/15 p-[1px] group-hover:border-white/30 transition-all">
+              <div className="w-full h-full bg-[#050505] rounded-[11px] flex items-center justify-center">
+                <span className="font-display font-black text-lg text-white tracking-tight">
                   MK
                 </span>
               </div>
             </div>
             <div className="flex flex-col">
               <div className="flex items-center gap-2">
-                <span className="font-display font-bold text-lg text-white tracking-tight group-hover:text-amber-400 transition-colors">
+                <span className="font-display font-bold text-base text-white tracking-tight group-hover:text-amber-400 transition-colors">
                   MK DIGITALVERSE
                 </span>
-                <span className="hidden sm:inline-block text-[10px] font-semibold uppercase tracking-wider px-2 py-0.5 rounded-full bg-emerald-500/10 text-emerald-400 border border-emerald-500/20">
+                <span className="hidden sm:inline-block text-[10px] font-semibold uppercase tracking-widest px-2 py-0.5 rounded-full bg-white/5 text-zinc-300 border border-white/10">
                   Growth Partner
                 </span>
               </div>
-              <span className="text-[11px] text-slate-400 font-medium hidden md:block">
-                Healthcare & Luxury Venues Strategy
+              <span className="text-[11px] text-zinc-400 font-medium hidden md:block">
+                Healthcare & Luxury Venues Practice
               </span>
             </div>
           </a>
 
           {/* Desktop Nav Links */}
-          <nav className="hidden lg:flex items-center gap-8 text-sm font-medium text-slate-300">
+          <nav className="hidden lg:flex items-center gap-7 text-xs font-semibold tracking-wide text-zinc-300 uppercase">
             
-            {/* Industries Dropdown / Selector */}
+            {/* Industries Dropdown */}
             <div className="relative">
               <button 
                 onClick={() => setIndustryDropdownOpen(!industryDropdownOpen)}
                 onBlur={() => setTimeout(() => setIndustryDropdownOpen(false), 200)}
-                className="flex items-center gap-1.5 hover:text-white transition-colors focus:outline-none"
+                className="flex items-center gap-1 hover:text-white transition-colors focus:outline-none py-1"
               >
                 <span>Industries</span>
-                <ChevronDown className={`w-4 h-4 transition-transform ${industryDropdownOpen ? 'rotate-180' : ''}`} />
+                <ChevronDown className={`w-3.5 h-3.5 transition-transform ${industryDropdownOpen ? 'rotate-180' : ''}`} />
               </button>
 
               {industryDropdownOpen && (
-                <div className="absolute top-full left-0 mt-3 w-64 glass-panel rounded-xl p-2 shadow-2xl border border-slate-700/60 z-50 animate-in fade-in slide-in-from-top-2 duration-200">
+                <div className="absolute top-full left-0 mt-3 w-72 glass-panel rounded-xl p-2 shadow-2xl border border-white/10 z-50 animate-in fade-in slide-in-from-top-2 duration-200">
                   <button
                     onClick={() => {
                       onSelectIndustry('healthcare');
@@ -96,16 +96,16 @@ export const Header: React.FC<HeaderProps> = ({
                     }}
                     className={`w-full flex items-center gap-3 p-3 rounded-lg transition-colors text-left ${
                       activeIndustry === 'healthcare' 
-                        ? 'bg-amber-500/10 text-amber-400 border border-amber-500/20' 
-                        : 'hover:bg-slate-800/60 text-slate-200'
+                        ? 'bg-amber-500/10 text-amber-300 border border-amber-500/20' 
+                        : 'hover:bg-white/5 text-zinc-200'
                     }`}
                   >
                     <div className="p-2 rounded-md bg-amber-500/20 text-amber-400">
                       <HeartPulse className="w-4 h-4" />
                     </div>
                     <div>
-                      <div className="font-semibold text-sm">Healthcare Systems</div>
-                      <div className="text-xs text-slate-400">Hospitals, Clinics, IVF</div>
+                      <div className="font-bold text-xs uppercase tracking-wider text-white">Healthcare Organizations</div>
+                      <div className="text-[11px] text-zinc-400 normal-case">Hospitals, IVF, Dental & Specialty Clinics</div>
                     </div>
                   </button>
 
@@ -118,76 +118,75 @@ export const Header: React.FC<HeaderProps> = ({
                     }}
                     className={`w-full flex items-center gap-3 p-3 rounded-lg transition-colors text-left mt-1 ${
                       activeIndustry === 'wedding_venues' 
-                        ? 'bg-emerald-500/10 text-emerald-400 border border-emerald-500/20' 
-                        : 'hover:bg-slate-800/60 text-slate-200'
+                        ? 'bg-emerald-500/10 text-emerald-300 border border-emerald-500/20' 
+                        : 'hover:bg-white/5 text-zinc-200'
                     }`}
                   >
                     <div className="p-2 rounded-md bg-emerald-500/20 text-emerald-400">
                       <Palmtree className="w-4 h-4" />
                     </div>
                     <div>
-                      <div className="font-semibold text-sm">Luxury Wedding Venues</div>
-                      <div className="text-xs text-slate-400">Resorts, Venues, Estates</div>
+                      <div className="font-bold text-xs uppercase tracking-wider text-white">Luxury Wedding Venues</div>
+                      <div className="text-[11px] text-zinc-400 normal-case">Resorts, Banquet Estates & Destinations</div>
                     </div>
                   </button>
                 </div>
               )}
             </div>
 
-            <a href="#partner-vs-agency" className="hover:text-white transition-colors">
-              Why Growth Partner
+            <a href="#capabilities" className="hover:text-white transition-colors">
+              Solutions
             </a>
             <a href="#framework" className="hover:text-white transition-colors">
-              Growth System
+              Frameworks
             </a>
-            <a href="#capabilities" className="hover:text-white transition-colors">
-              Capabilities
-            </a>
-            <a href="#roi-calculator" className="hover:text-white transition-colors flex items-center gap-1 text-amber-400 font-semibold">
-              <BarChart3 className="w-3.5 h-3.5" />
-              <span>ROI Calculator</span>
+            <a href="#roi-calculator" className="hover:text-white transition-colors text-amber-400">
+              ROI Model
             </a>
             <a href="#proof" className="hover:text-white transition-colors">
-              Impact & Proof
+              Proof
+            </a>
+            <a href="#partner-vs-agency" className="hover:text-white transition-colors">
+              About
             </a>
           </nav>
 
-          {/* Right Action Pill & CTA */}
+          {/* Right Action Pill & CTAs */}
           <div className="hidden md:flex items-center gap-4">
             
-            {/* Quick Industry Pill Switcher */}
-            <div className="bg-slate-900/90 border border-slate-800 p-1 rounded-full flex items-center text-xs font-semibold">
+            {/* Quick Industry Switcher */}
+            <div className="bg-zinc-950/90 border border-white/10 p-1 rounded-full flex items-center text-[11px] font-semibold">
               <button
                 onClick={() => onSelectIndustry('healthcare')}
-                className={`flex items-center gap-1.5 px-3 py-1.5 rounded-full transition-all ${
+                className={`flex items-center gap-1.5 px-3 py-1 rounded-full transition-all ${
                   activeIndustry === 'healthcare'
-                    ? 'bg-gradient-to-r from-amber-500 to-amber-600 text-slate-950 font-bold shadow-md shadow-amber-500/20'
-                    : 'text-slate-400 hover:text-slate-200'
+                    ? 'bg-amber-400 text-black font-bold shadow-sm'
+                    : 'text-zinc-400 hover:text-zinc-200'
                 }`}
               >
-                <HeartPulse className="w-3.5 h-3.5" />
+                <HeartPulse className="w-3 h-3" />
                 <span>Healthcare</span>
               </button>
               <button
                 onClick={() => onSelectIndustry('wedding_venues')}
-                className={`flex items-center gap-1.5 px-3 py-1.5 rounded-full transition-all ${
+                className={`flex items-center gap-1.5 px-3 py-1 rounded-full transition-all ${
                   activeIndustry === 'wedding_venues'
-                    ? 'bg-gradient-to-r from-emerald-500 to-teal-500 text-slate-950 font-bold shadow-md shadow-emerald-500/20'
-                    : 'text-slate-400 hover:text-slate-200'
+                    ? 'bg-emerald-400 text-black font-bold shadow-sm'
+                    : 'text-zinc-400 hover:text-zinc-200'
                 }`}
               >
-                <Palmtree className="w-3.5 h-3.5" />
+                <Palmtree className="w-3 h-3" />
                 <span>Venues</span>
               </button>
             </div>
 
-            {/* Audit CTA Button */}
+            {/* Book Discovery Call Button */}
             <button
               onClick={onOpenAuditModal}
-              className="relative inline-flex items-center gap-2 px-4 py-2 rounded-xl bg-gradient-to-r from-amber-500 via-amber-400 to-emerald-400 text-slate-950 font-bold text-xs uppercase tracking-wider hover:brightness-110 active:scale-95 transition-all shadow-lg shadow-amber-500/10 hover:shadow-amber-500/25"
+              className="px-5 py-2 rounded-full bg-white text-black font-bold text-xs uppercase tracking-wider hover:bg-zinc-200 active:scale-95 transition-all shadow-md flex items-center gap-1.5"
             >
-              <Sparkles className="w-3.5 h-3.5" />
-              <span>Request Growth Audit</span>
+              <span>Book Discovery Call</span>
+              <ArrowRight className="w-3.5 h-3.5" />
             </button>
           </div>
 
@@ -195,15 +194,15 @@ export const Header: React.FC<HeaderProps> = ({
           <div className="lg:hidden flex items-center gap-2">
             <button
               onClick={onOpenAuditModal}
-              className="px-3 py-1.5 rounded-lg bg-amber-500 text-slate-950 font-bold text-xs"
+              className="px-3.5 py-1.5 rounded-full bg-white text-black font-bold text-xs uppercase"
             >
-              Audit
+              Book Call
             </button>
             <button
               onClick={() => setMobileMenuOpen(!mobileMenuOpen)}
-              className="p-2 rounded-lg bg-slate-900 border border-slate-800 text-slate-300 hover:text-white"
+              className="p-2 rounded-xl bg-zinc-900 border border-white/10 text-zinc-300 hover:text-white"
             >
-              {mobileMenuOpen ? <X className="w-6 h-6" /> : <Menu className="w-6 h-6" />}
+              {mobileMenuOpen ? <X className="w-5 h-5" /> : <Menu className="w-5 h-5" />}
             </button>
           </div>
 
