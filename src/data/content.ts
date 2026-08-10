@@ -1,9 +1,11 @@
 import { IndustryData, ComparisonPoint, FrameworkStage, CapabilityItem, CaseStudy } from '../types';
 
-export const INDUSTRY_DATA: Record<'healthcare' | 'wedding_venues', IndustryData> = {
+export const INDUSTRY_DATA: Record<'healthcare', IndustryData> = {
   healthcare: {
     id: 'healthcare',
     title: 'Healthcare Growth Systems',
+    headline: 'Helping Healthcare Organizations Achieve Measurable Business Growth',
+    ipName: 'Healthcare Growth System™',
     tagline: 'Predictable Patient Acquisition & Clinical Reputation Engineering',
     description: 'We partner with healthcare organizations to build end-to-end patient growth engines. From high-trust digital clinical experiences to AI-driven lead qualification and performance marketing.',
     targetAudience: [
@@ -14,6 +16,23 @@ export const INDUSTRY_DATA: Record<'healthcare' | 'wedding_venues', IndustryData
       'Diagnostic & Imaging Networks',
       'Cosmetic & Plastic Surgery Clinics',
       'Premium Wellness & Longevity Centres'
+    ],
+    challenges: [
+      {
+        title: 'Inquiry & Intake Friction',
+        description: 'Over 35% of prospective patient calls and web leads drop off due to slow manual response during busy clinical hours.',
+        impact: 'Heavy ad spend waste and uncaptured patient lifetime value.'
+      },
+      {
+        title: 'Weak Pre-Consultation Trust',
+        description: 'Generic templates fail to showcase doctor expertise or clinical case outcomes, leaving patients hesitant to commit.',
+        impact: 'High consultation no-show rates and price sensitivity.'
+      },
+      {
+        title: 'Unoptimized Digital Funnels',
+        description: 'Patient acquisition relies on disconnected ads without real-time triage, pre-qualification, or instant slot booking.',
+        impact: 'High cost-per-acquired-patient and stagnant clinic growth.'
+      }
     ],
     verticals: [
       {
@@ -73,71 +92,6 @@ export const INDUSTRY_DATA: Record<'healthcare' | 'wedding_venues', IndustryData
       { label: 'No-Show Rate Reduction', value: '55%', subtext: 'Automated SMS/WhatsApp confirmation workflows' },
       { label: 'Annual Revenue Impact', value: '$2.4M+', subtext: 'Average added value per healthcare client' }
     ]
-  },
-
-  wedding_venues: {
-    id: 'wedding_venues',
-    title: 'Luxury Wedding Venues & Resorts',
-    tagline: 'High-Value Booking Engine & Premium Brand Positioning',
-    description: 'We position luxury wedding properties, destination resorts, and high-end venues to attract ultra-qualified wedding couples and premium event planners with predictable booking systems.',
-    targetAudience: [
-      'Luxury Wedding Venues',
-      'Five-Star & Heritage Resorts',
-      'Premium Banquet Halls',
-      'Destination Wedding Properties',
-      'Luxury Farmhouses & Estates'
-    ],
-    verticals: [
-      {
-        id: 'destination',
-        title: 'Destination Wedding Resorts',
-        description: 'Immersive virtual site tours, multi-day wedding package showcases, and global bride-to-be acquisition.',
-        keyMetric: '$180K+ Avg Booking Value Funnels',
-        iconName: 'Palmtree'
-      },
-      {
-        id: 'luxury_estates',
-        title: 'Luxury Estates & Venues',
-        description: 'High-converting interactive brochures, dates-availability checkers, and high-net-worth inquiry funnels.',
-        keyMetric: '4.2x Prime-Date Bookings',
-        iconName: 'Castle'
-      },
-      {
-        id: 'banquets',
-        title: 'Premium Banquet Collections',
-        description: 'Corporate event & luxury wedding dual-engine routing, floorplan visualizers, and instant pricing guides.',
-        keyMetric: '+210% Site Tour Requests',
-        iconName: 'Crown'
-      }
-    ],
-    growthPillars: [
-      {
-        title: 'Immersive Cinematic Web Platform',
-        description: 'Aesthetic, high-converting digital venue experiences featuring interactive floor plans, date inquiry widgets, and video tours.',
-        impact: 'Captures emotional desire and justifies premium pricing.'
-      },
-      {
-        title: 'Bride & Planner AI Pre-Qualification',
-        description: 'Smart inquiry funnels that filter by guest count, budget threshold, target wedding date, and wedding planner involvement.',
-        impact: 'Eliminates tire-kickers and delivers high-intent leads to your sales team.'
-      },
-      {
-        title: 'High-Ticket Social & Search Campaigns',
-        description: 'Omnichannel performance campaigns targeted at newly engaged couples, luxury event planners, and high-income demographics.',
-        impact: 'Fills open prime weekend dates 12–18 months in advance.'
-      },
-      {
-        title: 'Venue Tour & Proposal Automation',
-        description: 'Automated site-visit scheduling, personalized proposal generation, and SMS date-hold reminders.',
-        impact: 'Closes site visits into signed venue contracts 2.5x faster.'
-      }
-    ],
-    metrics: [
-      { label: 'Prime Weekend Dates Occupancy', value: '94%', subtext: 'Booked 12+ months in advance' },
-      { label: 'Average Contract Value Increase', value: '+32%', subtext: 'Through premium digital positioning' },
-      { label: 'Qualified Site Tour Conversion', value: '48%', subtext: 'Inquiries converting to in-person tours' },
-      { label: 'Marketing ROI Multiple', value: '8.4x', subtext: 'Direct venue revenue generated vs ad spend' }
-    ]
   }
 };
 
@@ -150,12 +104,12 @@ export const COMPARISON_MATRIX: ComparisonPoint[] = [
   {
     dimension: 'Primary Focus',
     traditionalAgency: 'Vanity metrics like impressions, clicks, followers, and basic web traffic',
-    mkGrowthPartner: 'Measurable ROI, verified patient appointments, and high-value venue contracts'
+    mkGrowthPartner: 'Measurable ROI, verified patient appointments, and scalable unit economics'
   },
   {
     dimension: 'Industry Expertise',
     traditionalAgency: 'Generic templates applied across dozens of unrelated industries',
-    mkGrowthPartner: 'Deep specialization exclusively in Healthcare and Luxury Wedding Venues'
+    mkGrowthPartner: 'Deep specialization exclusively in Healthcare Organizations'
   },
   {
     dimension: 'Technology Infrastructure',
@@ -177,101 +131,159 @@ export const COMPARISON_MATRIX: ComparisonPoint[] = [
 export const FRAMEWORK_STAGES: FrameworkStage[] = [
   {
     id: 1,
-    title: 'Phase 1: Strategic Blueprint & Growth Audit',
-    subtitle: 'Market Positioning & Unit Economics Analysis',
-    description: 'We audit your current digital footprint, analyze competitor positioning, define target customer economics, and build your bespoke growth architecture.',
-    deliverables: ['Competitor Gap Matrix', 'Patient / Bride Persona Mapping', 'Growth Funnel Architecture', 'ROI & Capacity Benchmark'],
-    icon: 'Compass',
-    techStack: ['Market Analytics', 'Audience Intelligence', 'Growth Modeling']
+    title: 'Stage 1: Healthcare Growth Audit™',
+    subtitle: 'Diagnose Opportunities & Intake Bottlenecks',
+    description: 'We perform a forensic diagnostic audit of your entire digital footprint and intake funnel—pinpointing revenue leaks, ad capital waste, and response delays before building your growth strategy.',
+    deliverables: ['Healthcare Growth Audit™ Report', 'Intake Leak & Bottleneck Map', 'Unit Economics Benchmark', 'Opportunity Matrix'],
+    icon: 'Search',
+    techStack: ['Audit Diagnostics', 'Funnel Analytics', 'Unit Economics']
   },
   {
     id: 2,
-    title: 'Phase 2: High-Converting Digital Web Platform',
-    subtitle: 'Ultra-Sleek Enterprise Web Engineering',
-    description: 'We build a high-speed, SEO-first digital flagship designed to establish immediate trust, showcase authority, and convert traffic into qualified inquiries.',
-    deliverables: ['Next.js App Router Architecture', 'Clinical/Venue Storytelling Layouts', 'Interactive Tour/Booking Modules', 'SEO Schema & Core Web Vitals 95+'],
-    icon: 'Layout',
-    techStack: ['Next.js', 'React', 'Tailwind CSS', 'TypeScript', 'Vercel']
+    title: 'Stage 2: Growth Strategy',
+    subtitle: 'Build a Measurable Growth Roadmap',
+    description: 'We construct an actionable 12-month growth roadmap tailored specifically to your organization’s revenue targets, specialty capacity, and local market opportunity.',
+    deliverables: ['Measurable Growth Blueprint', 'Specialty Capacity Roadmap', 'Patient LTV Projection', 'Resource Allocation Model'],
+    icon: 'Target',
+    techStack: ['Strategic Modeling', 'Growth Architecture', 'Capacity Planning']
   },
   {
     id: 3,
-    title: 'Phase 3: AI Qualification & Lead Automation Engine',
-    subtitle: 'Smart Routing & Frictionless Booking Workflows',
-    description: 'We deploy AI-powered conversational systems that engage visitors 24/7, pre-qualify budget and intent, and seamlessly book consultations or site tours.',
-    deliverables: ['AI Pre-Qualification Bots', 'Real-time SMS & WhatsApp Alerts', 'CRM & Calendar Integration', 'Automated Reminder Sequences'],
-    icon: 'Bot',
-    techStack: ['Firebase', 'AI Intent Triage', 'CRM Sync', 'WhatsApp API']
+    title: 'Stage 3: Brand Positioning',
+    subtitle: 'Build Trust Before the First Consultation',
+    description: 'We engineer high-trust clinical authority profiles and narrative positioning that showcase doctor expertise, case outcomes, and institution prestige—eliminating price resistance.',
+    deliverables: ['Clinical Trust Architecture™', 'Doctor & Specialist Authority Portals', 'Patient Trust Proof Showcase', 'Prestige Brand Positioning'],
+    icon: 'Award',
+    techStack: ['Authority Messaging', 'Clinical Storytelling', 'Brand Systems']
   },
   {
     id: 4,
-    title: 'Phase 4: Precision Acquisition Marketing',
-    subtitle: 'Multi-Channel Performance & Authority Campaigns',
-    description: 'We engineer high-intent Google Search, Meta Social, and Local SEO campaigns designed to capture high-value patients and luxury venue bookers.',
-    deliverables: ['High-Intent Search Campaigns', 'Geo-Targeted Social Funnels', 'Reputation & Review Growth Engine', 'Retargeting Ecosystem'],
-    icon: 'TrendingUp',
-    techStack: ['Google Ads (Search & Maps)', 'Meta Ads Manager', 'Local SEO Schema']
+    title: 'Stage 4: Conversion-Focused Websites ⭐',
+    subtitle: 'Flagship Digital Platform for Patient Conversion',
+    description: 'We design and develop high-performing enterprise Next.js web platforms that build immediate credibility, streamline navigation, and convert visitors into qualified patient enquiries.',
+    deliverables: ['Enterprise Next.js Web Engine™', 'Interactive Appointment & Slot Schedulers', 'Sub-Second Page Load Speeds (Core Web Vitals 95+)', 'Medical SEO & Schema Markup'],
+    icon: 'Code2',
+    techStack: ['Next.js App Router', 'React', 'Tailwind CSS', 'TypeScript', 'SEO Schema']
   },
   {
     id: 5,
-    title: 'Phase 5: Scale, Revenue Analytics & LTV Optimization',
-    subtitle: 'Data-Driven Optimization & Expansion',
-    description: 'We continuously analyze pipeline metrics, test conversion variables, optimize ad spend performance, and implement patient/client retention funnels.',
-    deliverables: ['Real-Time Growth Dashboard', 'A/B Conversion Rate Optimization', 'Cross-Specialty Referral Loops', 'Executive Strategy Reviews'],
+    title: 'Stage 5: AI-Powered Business Systems',
+    subtitle: 'Automate Workflows & Operational Efficiency',
+    description: 'We deploy 24/7 conversational AI agents that triage incoming patient inquiries in under 30 seconds, pre-qualify intent, and route ready-to-book leads directly to staff WhatsApp and CRM.',
+    deliverables: ['24/7 AI Triage & Routing Engine™', 'Instant Lead Qualification Sequences', 'WhatsApp & SMS Coordinator Alerts', 'EHR & CRM Real-Time Integration'],
+    icon: 'Bot',
+    techStack: ['Gemini AI Triage', 'WhatsApp Cloud API', 'CRM Integration', 'Webhooks']
+  },
+  {
+    id: 6,
+    title: 'Stage 6: Performance Marketing',
+    subtitle: 'Generate Predictable, Qualified Enquiries',
+    description: 'We execute data-driven acquisition campaigns across Google Search, Google Maps, and Meta channels to capture active patients searching for specialized treatment.',
+    deliverables: ['Precision Geo-Funnel Engine™', 'Top-3 Google Search Dominance', 'Geo-Targeted High-Intent Campaigns', 'Local SEO & Reputation Engine'],
+    icon: 'TrendingUp',
+    techStack: ['Google Ads Search/Maps', 'Meta Ads Manager', 'Local SEO Schema']
+  },
+  {
+    id: 7,
+    title: 'Stage 7: Measurement & Continuous Optimization',
+    subtitle: 'Track Performance & Continuous Improvement',
+    description: 'We track bottom-line revenue, verified patient appointments, and acquisition costs in real-time, executing weekly data-driven optimizations for long-term sustainable growth.',
+    deliverables: ['Healthcare Growth Index™ (HGI™) Dashboard', 'Real-Time Revenue & CAC Attribution', 'Weekly Conversion Rate Optimization', 'Sustainable Scale Strategy'],
     icon: 'BarChart3',
-    techStack: ['Analytics Engine', 'Conversion Testing', 'LTV Automation']
+    techStack: ['Custom Analytics API', 'HGI™ Tracking', 'Unit Economics Analytics']
   }
 ];
 
 export const CAPABILITIES: CapabilityItem[] = [
   {
     id: 'strategy',
-    title: 'Growth Strategy & Brand Architecture',
-    shortDesc: 'Position your organization as the undisputed leader in your region or sector.',
-    fullDesc: 'We craft comprehensive positioning strategies, value propositions, and messaging frameworks that differentiate your brand from local competitors and justify premium pricing.',
+    pillarNumber: '01',
+    title: 'Healthcare Growth Strategy',
+    purpose: 'Develop a clear roadmap for measurable and sustainable business growth.',
+    shortDesc: 'A rigorous diagnostic approach that aligns unit economics with market opportunity before executing campaigns.',
+    fullDesc: 'We evaluate your organization’s entire acquisition model—from initial intake friction to patient lifetime value or treatment package size. We construct a bespoke growth blueprint tailored specifically to your financial targets.',
     icon: 'Target',
-    industryApplicability: 'both',
-    features: ['Market Positioning Matrix', 'Customer Journey Mapping', 'Unit Economics & ROI Planning', 'Brand Messaging Standards'],
-    businessOutcome: 'Elevates market perception and increases average contract/treatment value.'
+    framework: 'Healthcare Growth Audit™',
+    industryApplicability: 'healthcare',
+    features: ['Unit Economics & LTV Modeling', 'Patient Intake Leak Diagnosis', 'Competitive Market Gap Analysis', 'Custom Revenue Blueprinting'],
+    businessOutcome: 'Eliminates ad capital waste and establishes clear unit economics for scalable expansion.',
+    outcomes: [
+      'Pinpoint exact revenue loss points across phone & web intake',
+      'Establish baseline patient LTV and treatment package profitability',
+      'Construct actionable 12-month growth roadmap'
+    ]
   },
   {
-    id: 'web_development',
-    title: 'High-Converting Web Platforms',
-    shortDesc: 'Custom-engineered, high-speed digital engines built for maximum conversion and search rank.',
-    fullDesc: 'We build enterprise-grade web applications using modern, modular tech stacks. Focused on speed, accessibility, SEO schema, and intuitive user paths.',
+    id: 'brand',
+    pillarNumber: '02',
+    title: 'Brand Positioning',
+    purpose: 'Build trust, authority, and a differentiated healthcare brand.',
+    shortDesc: 'Position your doctors or medical practice as the premier choice in your region, creating immediate trust.',
+    fullDesc: 'We engineer high-trust brand systems that highlight clinical excellence, doctor credentials, and facility prestige. By positioning your institution as a category authority, we reduce price resistance and increase appointment conversion.',
+    icon: 'Award',
+    framework: 'Clinical Trust Architecture™',
+    industryApplicability: 'healthcare',
+    features: ['Doctor & Specialist Authority Portals', 'Clinical Case Showcase Systems', 'Hospital Narrative Engineering', 'Prestige Patient Psychological Mapping'],
+    businessOutcome: 'Commands fee authority and drives 2.4x higher consultation acceptance.',
+    outcomes: [
+      'Eliminate price sensitivity before sales conversations begin',
+      'Position specialists as regional medical key opinion leaders',
+      'Build overwhelming trust with prospective patients'
+    ]
+  },
+  {
+    id: 'conversion_websites',
+    pillarNumber: '03 ⭐ Flagship Capability',
+    title: 'Conversion-Focused Websites ⭐',
+    purpose: 'Design and develop high-performing websites that build trust, improve patient experience, and convert visitors into qualified patient enquiries.',
+    shortDesc: 'Sub-second digital flagships engineered for high-intent booking UI, doctor showcases, and effortless patient conversion.',
+    fullDesc: 'Conversion-Focused Websites are the digital cornerstone of the Healthcare Growth System™. Built on custom enterprise Next.js architecture, they deliver sub-second load times, interactive specialist finders, seamless appointment flows, and deep medical SEO schema to maximize visitor conversion.',
     icon: 'Code2',
-    industryApplicability: 'both',
-    features: ['Next.js / React Architecture', 'Core Web Vitals 95+ Performance', 'Interactive Booking & Quiz Funnels', 'Comprehensive Structured Data SEO'],
-    businessOutcome: 'Converts 3x to 5x more website traffic into verified business inquiries.'
+    framework: 'Enterprise Next.js Web Engine™',
+    industryApplicability: 'healthcare',
+    features: ['Next.js App Router Architecture', 'Sub-Second Core Web Vitals (95+ Rating)', 'Interactive Patient Consultation & Slot Schedulers', 'Medical & Clinical SEO Schema Markup'],
+    businessOutcome: 'Converts cold website visitors into verified clinical patient enquiries at +185% higher efficiency.',
+    outcomes: [
+      'Sub-second page load speeds across all mobile and desktop devices',
+      'Interactive patient booking pathways with zero friction',
+      'Dominant top-3 organic search ranking for high-ticket medical specialties'
+    ]
   },
   {
     id: 'ai_systems',
-    title: 'AI Patient & Booking Qualification',
-    shortDesc: 'Automate lead triage 24/7 so your team only spends time on high-value prospects.',
-    fullDesc: 'Our AI qualification engines instantly answer common patient/bride questions, gather essential budget and timeline details, and schedule appointments automatically.',
+    pillarNumber: '04',
+    title: 'AI-Powered Business Systems',
+    purpose: 'Automate repetitive processes, improve lead handling, and increase operational efficiency.',
+    shortDesc: 'Instant, intelligent qualification engines that engage prospects day or night and route qualified leads to staff.',
+    fullDesc: 'Our conversational AI agents handle incoming patient inquiries in under 30 seconds, qualifying clinical intent, budget, and specialty needs before routing ready-to-book leads directly to staff WhatsApp and CRM.',
     icon: 'Cpu',
-    industryApplicability: 'both',
-    features: ['24/7 Smart Conversational Triage', 'Budget & Intent Pre-Screening', 'Automated SMS/WhatsApp Instant Response', 'Direct EHR / CRM Synchronization'],
-    businessOutcome: 'Eliminates cold lead chasing and lowers cost per acquired patient/booking by up to 45%.'
+    framework: 'AI Triage & Routing Engine™',
+    industryApplicability: 'healthcare',
+    features: ['24/7 Smart Conversational Triage', 'Patient Intent & Specialty Pre-Screening', 'Instant WhatsApp & SMS Routing', 'EHR & CRM Real-Time Sync'],
+    businessOutcome: 'Responds in under 30 seconds 24/7 and reduces cost per acquired patient by up to 45%.',
+    outcomes: [
+      '100% instant response rate day or night',
+      'Automated filtering of tire-kickers and non-serious inquiries',
+      'Direct WhatsApp consultation hold generated automatically'
+    ]
   },
   {
     id: 'performance_marketing',
-    title: 'Performance Growth Marketing',
-    shortDesc: 'Data-backed Google Search, Meta, and Local SEO campaigns engineered for revenue.',
-    fullDesc: 'We run high-precision, search-intent campaigns targeting high-ticket treatments (IVF, Implant, Cosmetic) or prime wedding venue searches in your geographic zone.',
+    pillarNumber: '05',
+    title: 'Performance Marketing',
+    purpose: 'Generate qualified patient enquiries through data-driven campaigns and continuous optimization.',
+    shortDesc: 'Search-intent Google campaigns and geo-fenced Meta funnels designed for measurable revenue.',
+    fullDesc: 'We execute hyper-targeted acquisition campaigns designed to capture active patients searching for specialized treatments. Fully integrated with real-time analytics dashboards.',
     icon: 'Zap',
-    industryApplicability: 'both',
-    features: ['Google Search & Maps Domination', 'Meta (Instagram/FB) Visual Acquisition', 'Hyper-Local Geo-Fenced Ads', 'A/B Creative & Landing Page Testing'],
-    businessOutcome: 'Generates predictable, qualified lead volume month after month.'
-  },
-  {
-    id: 'reputation_system',
-    title: 'Reputation & LTV Retention Engines',
-    shortDesc: 'Turn satisfied patients and venue clients into organic brand advocates.',
-    fullDesc: 'Automated review generation workflows and post-service follow-up sequences that systematically build 5-star Google ratings and referral networks.',
-    icon: 'ShieldCheck',
-    industryApplicability: 'both',
-    features: ['Automated Review Request Workflows', 'Private Feedback Escalation Paths', 'Patient Re-engagement Loops', 'Referral & Review Widgets'],
-    businessOutcome: 'Builds dominant local search rankings and organic word-of-mouth momentum.'
+    framework: 'Precision Geo-Funnel Engine™',
+    industryApplicability: 'healthcare',
+    features: ['Google Search & Maps Domination', 'Meta (Instagram) High-Intent Ads', 'Hyper-Local Geo-Fenced Targeting', 'Real-Time Revenue Attribution Dashboards'],
+    businessOutcome: 'Delivers predictable, high-margin patient acquisition with an average 3.8x ROAS.',
+    outcomes: [
+      'Own top 3 Google Search positions for high-ticket medical services',
+      'Reach target households within a 25km clinic radius',
+      'Real-time executive tracking of cost-per-acquired-patient'
+    ]
   }
 ];
 
@@ -295,21 +307,21 @@ export const CASE_STUDIES: CaseStudy[] = [
     }
   },
   {
-    id: 'destination_wedding_resort',
-    clientCategory: 'Luxury Heritage Resort & Destination Venue',
-    industry: 'wedding_venues',
-    title: 'Achieving 96% Prime Weekend Occupancy & $2.2M Annual Booking Growth',
-    challenge: 'A high-end 5-star venue was losing prime dates to competitor properties due to a outdated website and slow inquiry response times.',
-    solution: 'Engineered a cinematic web platform with interactive venue date checker, 3D site walkthroughs, and automated instant venue proposal delivery.',
+    id: 'hospital_network_growth',
+    clientCategory: 'Apex Multi-Specialty Hospital Network',
+    industry: 'healthcare',
+    title: 'Adding ₹4.2 Cr in Elective Surgery Pipeline Across 4 Hospital Locations',
+    challenge: 'A growing hospital network experienced high patient drop-off on their legacy website, alongside 30-minute delays in routing digital consultation requests.',
+    solution: 'Re-architected their digital infrastructure into a Next.js web platform paired with centralized 24/7 AI Triage that automatically categorizes patient intent by specialty.',
     results: [
-      { metric: '96%', label: 'Prime Weekend Dates Booked' },
-      { metric: '3.8x', label: 'Inquiry-to-Site-Tour Conversion' },
-      { metric: '$2.2M', label: 'Incremental Venue Booking Value' }
+      { metric: '₹4.2 Cr', label: 'Incremental Elective Pipeline' },
+      { metric: '<30s', label: 'Average Intake Response Time' },
+      { metric: '3.4x', label: 'Inquiry-to-Appointment Lift' }
     ],
     quote: {
-      text: 'The positioning and automated tour scheduling built by MK Digitalverse allowed us to increase venue pricing by 25% while booking out our peak dates a year early.',
-      author: 'R. Malhotra',
-      role: 'Head of Hospitality & Weddings'
+      text: 'The 24/7 AI triage and doctor authority portals positioned our hospital as the top regional choice for surgical procedures. The intake speed is unmatched.',
+      author: 'Dr. R. Kapoor',
+      role: 'Managing Director & CMO'
     }
   }
 ];
@@ -317,22 +329,22 @@ export const CASE_STUDIES: CaseStudy[] = [
 export const FAQS = [
   {
     question: 'How is MK Digitalverse different from a traditional marketing agency?',
-    answer: 'Traditional agencies sell generic, tactical services like posting on social media, running basic ad campaigns, or designing static templates. MK Digitalverse operates as a Digital Growth Partner. We design, deploy, and manage complete business growth systems tailored specifically to Healthcare and Luxury Wedding Venues — combining strategy, enterprise web platforms, AI pre-qualification, performance marketing, and analytics tied directly to revenue.'
+    answer: 'Traditional agencies sell generic, tactical services like posting on social media, running basic ad campaigns, or designing static templates. MK Digitalverse operates as a Digital Growth Partner. We design, deploy, and manage complete business growth systems tailored specifically to Healthcare Organizations — combining strategy, enterprise web platforms, AI pre-qualification, performance marketing, and analytics tied directly to revenue.'
   },
   {
-    question: 'Why do you specialize exclusively in Healthcare and Luxury Wedding Venues?',
-    answer: 'High-ticket, decision-heavy industries like Healthcare and Luxury Venues require deep domain understanding. Patient acquisition requires clinical trust, HIPAA/medical compliance, and empathy. Venue booking requires emotional positioning, high contract value qualification, and dates management. Broad agencies apply generic templates; we bring battle-tested playbooks engineered for these exact industries.'
+    question: 'Why do you specialize exclusively in Healthcare Organizations?',
+    answer: 'High-ticket, decision-heavy industries like Healthcare require deep domain understanding. Patient acquisition requires clinical trust, medical compliance, authority profiling, and empathy. Broad agencies apply generic templates; we bring battle-tested playbooks engineered specifically for hospitals, clinics, IVF centres, dental groups, and diagnostic networks.'
   },
   {
-    question: 'How does the AI Patient / Lead Qualification system work?',
-    answer: 'When a prospective patient or wedding couple lands on your digital platform, our custom AI pre-qualification system engages them with conversational micro-questions (e.g. specialty needed, guest count, estimated budget, preferred timeline). It filters out non-serious inquiries, answers common FAQs 24/7, and instantly routes qualified leads directly to your sales or patient care team via WhatsApp, SMS, or CRM.'
+    question: 'How does the AI Patient Qualification system work?',
+    answer: 'When a prospective patient lands on your digital platform, our custom AI pre-qualification system engages them with conversational micro-questions (e.g. specialty needed, treatment urgency, preferred location). It filters out non-serious inquiries, answers common clinical FAQs 24/7, and instantly routes qualified leads directly to your patient care team via WhatsApp, SMS, or CRM.'
   },
   {
     question: 'How quickly can we expect measurable business results?',
-    answer: 'Our initial Phase 1 Audit and Phase 2 Platform deployment typically complete within 3–4 weeks. Once performance campaigns and AI systems go live in Phase 3 & 4, our partners typically see an immediate uptick in qualified inquiries within the first 14 days, with full momentum and compounding ROI achieved within 60–90 days.'
+    answer: 'Our initial Phase 1 Audit and Phase 2 Platform deployment typically complete within 3–4 weeks. Once performance campaigns and AI systems go live in Phase 3 & 4, our partners typically see an immediate uptick in qualified patient inquiries within the first 14 days, with full momentum and compounding ROI achieved within 60–90 days.'
   },
   {
     question: 'Do you work on monthly retainers or performance project engagements?',
-    answer: 'We partner on a strategic growth basis combining an initial system implementation phase followed by a performance growth management retainer. This ensures complete alignment — our success is measured directly by your patient volume, venue booking rates, and overall revenue growth.'
+    answer: 'We partner on a strategic growth basis combining an initial system implementation phase followed by a performance growth management retainer. This ensures complete alignment — our success is measured directly by your patient volume, consultation show-up rates, and overall healthcare organization revenue growth.'
   }
 ];

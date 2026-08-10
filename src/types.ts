@@ -1,4 +1,4 @@
-export type IndustryType = 'healthcare' | 'wedding_venues';
+export type IndustryType = 'healthcare';
 
 export interface IndustryVertical {
   id: string;
@@ -8,12 +8,21 @@ export interface IndustryVertical {
   iconName: string;
 }
 
+export interface IndustryChallenge {
+  title: string;
+  description: string;
+  impact: string;
+}
+
 export interface IndustryData {
   id: IndustryType;
   title: string;
+  headline: string;
+  ipName: string;
   tagline: string;
   description: string;
   targetAudience: string[];
+  challenges: IndustryChallenge[];
   verticals: IndustryVertical[];
   growthPillars: {
     title: string;
@@ -45,13 +54,17 @@ export interface FrameworkStage {
 
 export interface CapabilityItem {
   id: string;
+  pillarNumber: string;
   title: string;
+  purpose: string;
   shortDesc: string;
   fullDesc: string;
   icon: string;
-  industryApplicability: IndustryType[] | 'both';
+  framework: string;
+  industryApplicability: IndustryType[] | 'healthcare';
   features: string[];
   businessOutcome: string;
+  outcomes: string[];
 }
 
 export interface CaseStudy {
