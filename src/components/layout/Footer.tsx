@@ -1,6 +1,8 @@
 import React, { useState } from 'react';
 import { IndustryType } from '../../types';
 import { analytics } from '../../services/analytics';
+import { firebaseManager } from '../../services/firebase';
+import { getAttributionData } from '../../lib/utm';
 import { SITE_CONFIG } from '../../config/site';
 import { 
   HeartPulse, 
@@ -81,9 +83,18 @@ export const Footer: React.FC<FooterProps> = ({ onSelectIndustry, onOpenAuditMod
   const [newsletterEmail, setNewsletterEmail] = useState('');
   const [subscribed, setSubscribed] = useState(false);
 
-  const handleSubscribe = (e: React.FormEvent) => {
+  const handleSubscribe = async (e: React.FormEvent) => {
     e.preventDefault();
     if (newsletterEmail.trim()) {
+      const attribution = getAttributionData();
+      await firebaseManager.submitSubscriber({
+        email: newsletterEmail.trim(),
+        source: 'footer_subscription',
+        utm_source: attribution.utm_source,
+        utm_medium: attribution.utm_medium,
+        utm_campaign: attribution.utm_campaign
+      });
+      analytics.trackCustomEvent('newsletter_subscription', { email: newsletterEmail.trim() });
       setSubscribed(true);
       setTimeout(() => {
         setNewsletterEmail('');

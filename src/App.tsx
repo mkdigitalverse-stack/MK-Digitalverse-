@@ -6,6 +6,7 @@ import { HomePage } from './features/home/HomePage';
 import { AboutPage } from './features/about/AboutPage';
 import { GrowthAuditModal } from './components/ui/GrowthAuditModal';
 import { DesignSystemPage } from './features/design-system/DesignSystemPage';
+import { AdminLeadsPage } from './features/admin/AdminLeadsPage';
 import { NotFoundPage } from './components/ui/NotFoundPage';
 import { useRouter } from './routes/router';
 import { analytics } from './services/analytics';
@@ -16,6 +17,10 @@ export default function App() {
   const { currentRoute, navigateTo } = useRouter();
 
   useEffect(() => {
+    if (currentRoute === 'admin-leads') {
+      // Do not contaminate public marketing analytics with internal admin workspace views
+      return;
+    }
     const pageTitle = currentRoute === 'design-system' 
       ? 'Design System (DS-01)' 
       : currentRoute === 'about'
@@ -40,6 +45,12 @@ export default function App() {
   const handleCloseAuditModal = () => {
     setAuditModalOpen(false);
   };
+
+  if (currentRoute === 'admin-leads') {
+    return (
+      <AdminLeadsPage onReturnHome={() => navigateTo('home')} />
+    );
+  }
 
   if (currentRoute === '404') {
     return (

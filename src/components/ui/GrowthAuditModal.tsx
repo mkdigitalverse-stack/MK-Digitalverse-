@@ -69,8 +69,10 @@ export const GrowthAuditModal: React.FC<GrowthAuditModalProps> = ({
           email: formData.email,
           phone: formData.phone,
           organizationName: formData.organizationName,
-          industry: 'healthcare',
-          primaryChallenge: formData.biggestChallenge
+          industry: formData.healthcareCategory,
+          primaryChallenge: formData.biggestChallenge,
+          growthObjective: formData.growthObjective,
+          investmentReadiness: formData.investmentReadiness
         });
       } catch (err) {
         console.error('Audit submission error:', err);

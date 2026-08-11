@@ -48,6 +48,25 @@ export const Header: React.FC<HeaderProps> = ({
     return () => window.removeEventListener('scroll', handleScroll);
   }, []);
 
+  // Lock body scroll and handle Escape key when mobile menu is open
+  useEffect(() => {
+    if (mobileMenuOpen) {
+      document.body.style.overflow = 'hidden';
+      const handleKeyDown = (e: KeyboardEvent) => {
+        if (e.key === 'Escape') {
+          setMobileMenuOpen(false);
+        }
+      };
+      window.addEventListener('keydown', handleKeyDown);
+      return () => {
+        document.body.style.overflow = '';
+        window.removeEventListener('keydown', handleKeyDown);
+      };
+    } else {
+      document.body.style.overflow = '';
+    }
+  }, [mobileMenuOpen]);
+
   const closeDropdowns = () => setActiveDropdown(null);
 
   return (
@@ -144,113 +163,121 @@ export const Header: React.FC<HeaderProps> = ({
 
       {/* Full-Screen Mobile Drawer */}
       {mobileMenuOpen && (
-        <div className="lg:hidden fixed inset-x-0 top-[65px] bottom-0 bg-[#050B18]/98 backdrop-blur-2xl z-50 border-t border-[#C5A059]/20 px-6 py-8 overflow-y-auto flex flex-col justify-between animate-in fade-in slide-in-from-top-4 duration-200 text-white">
-          
-          <div className="space-y-6">
-            <nav className="flex flex-col gap-3 font-display text-base font-bold text-slate-100">
-              <a 
-                href="#capabilities" 
-                onClick={() => setMobileMenuOpen(false)}
-                className="p-3.5 rounded-xl hover:bg-[#0B1730] border border-transparent hover:border-[#C5A059]/30 flex items-center justify-between min-h-[48px]"
-              >
-                <span>Solutions</span>
-                <span className="text-xs text-[#D4AF37] font-mono">01</span>
-              </a>
+        <>
+          {/* Backdrop overlay */}
+          <div 
+            className="lg:hidden fixed inset-0 bg-black/60 backdrop-blur-sm z-40"
+            onClick={() => setMobileMenuOpen(false)}
+            aria-hidden="true"
+          />
+          <div className="lg:hidden fixed inset-x-0 top-[65px] bottom-0 bg-[#050B18]/98 backdrop-blur-2xl z-50 border-t border-[#C5A059]/20 px-6 py-8 overflow-y-auto flex flex-col justify-between animate-in fade-in slide-in-from-top-4 duration-200 text-white">
+            
+            <div className="space-y-6">
+              <nav className="flex flex-col gap-3 font-display text-base font-bold text-slate-100">
+                <a 
+                  href="#capabilities" 
+                  onClick={() => setMobileMenuOpen(false)}
+                  className="p-3.5 rounded-xl hover:bg-[#0B1730] border border-transparent hover:border-[#C5A059]/30 flex items-center justify-between min-h-[48px]"
+                >
+                  <span>Solutions</span>
+                  <span className="text-xs text-[#D4AF37] font-mono">01</span>
+                </a>
 
-              <a 
-                href="#/about" 
-                onClick={() => setMobileMenuOpen(false)}
-                className="p-3.5 rounded-xl hover:bg-[#0B1730] border border-transparent hover:border-[#C5A059]/30 flex items-center justify-between min-h-[48px]"
-              >
-                <span>About</span>
-                <span className="text-xs text-[#D4AF37] font-mono">02</span>
-              </a>
+                <a 
+                  href="#/about" 
+                  onClick={() => setMobileMenuOpen(false)}
+                  className="p-3.5 rounded-xl hover:bg-[#0B1730] border border-transparent hover:border-[#C5A059]/30 flex items-center justify-between min-h-[48px]"
+                >
+                  <span>About</span>
+                  <span className="text-xs text-[#D4AF37] font-mono">02</span>
+                </a>
 
-              <a 
-                href="#faq" 
-                onClick={() => setMobileMenuOpen(false)}
-                className="p-3.5 rounded-xl hover:bg-[#0B1730] border border-transparent hover:border-[#C5A059]/30 flex items-center justify-between min-h-[48px]"
-              >
-                <span>Contact</span>
-                <span className="text-xs text-[#D4AF37] font-mono">03</span>
-              </a>
-            </nav>
-          </div>
-
-          {/* Mobile Drawer CTA & Social Channels */}
-          <div className="pt-6 border-t border-[#C5A059]/20 space-y-4">
-            <button
-              onClick={() => {
-                setMobileMenuOpen(false);
-                onOpenAuditModal();
-              }}
-              className="w-full py-4 rounded-xl bg-gradient-to-r from-[#D4AF37] to-[#C5A059] text-[#050B18] font-extrabold text-xs uppercase tracking-wider flex items-center justify-center gap-2 shadow-xl min-h-[48px] cursor-pointer"
-            >
-              <Sparkles className="w-4 h-4 text-[#050B18]" />
-              <span>Book Discovery Call</span>
-              <ArrowRight className="w-4 h-4" />
-            </button>
-
-            {/* Social Media Links */}
-            <div className="flex items-center justify-center gap-3 pt-2">
-              <a
-                href={SITE_CONFIG.socials.facebook}
-                target="_blank"
-                rel="noopener noreferrer"
-                className="w-9 h-9 rounded-xl bg-white/10 border border-white/10 flex items-center justify-center text-slate-300 hover:text-white hover:border-[#C5A059] hover:bg-[#C5A059]/20 transition-all"
-                title="Follow MK Digitalverse on Facebook"
-                aria-label="Facebook"
-              >
-                <Facebook className="w-4 h-4" />
-              </a>
-              <a
-                href={SITE_CONFIG.socials.instagram}
-                target="_blank"
-                rel="noopener noreferrer"
-                className="w-9 h-9 rounded-xl bg-white/10 border border-white/10 flex items-center justify-center text-slate-300 hover:text-white hover:border-[#C5A059] hover:bg-[#C5A059]/20 transition-all"
-                title="Follow MK Digitalverse on Instagram"
-                aria-label="Instagram"
-              >
-                <Instagram className="w-4 h-4" />
-              </a>
-              <a
-                href={SITE_CONFIG.socials.linkedin}
-                target="_blank"
-                rel="noopener noreferrer"
-                className="w-9 h-9 rounded-xl bg-white/10 border border-white/10 flex items-center justify-center text-slate-300 hover:text-white hover:border-[#C5A059] hover:bg-[#C5A059]/20 transition-all"
-                title="Follow MK Digitalverse on LinkedIn"
-                aria-label="LinkedIn"
-              >
-                <Linkedin className="w-4 h-4" />
-              </a>
-              <a
-                href={SITE_CONFIG.socials.youtube}
-                target="_blank"
-                rel="noopener noreferrer"
-                className="w-9 h-9 rounded-xl bg-white/10 border border-white/10 flex items-center justify-center text-slate-300 hover:text-white hover:border-[#C5A059] hover:bg-[#C5A059]/20 transition-all"
-                title="Subscribe to MK Digitalverse on YouTube"
-                aria-label="YouTube"
-              >
-                <Youtube className="w-4 h-4" />
-              </a>
-              <a
-                href={SITE_CONFIG.socials.whatsapp}
-                target="_blank"
-                rel="noopener noreferrer"
-                className="w-9 h-9 rounded-xl bg-emerald-600/20 border border-emerald-500/40 flex items-center justify-center text-emerald-400 hover:text-white hover:border-emerald-400 hover:bg-emerald-600 transition-all"
-                title="Chat with MK Digitalverse on WhatsApp"
-                aria-label="WhatsApp"
-              >
-                <MessageCircle className="w-4 h-4" />
-              </a>
+                <a 
+                  href="#faq" 
+                  onClick={() => setMobileMenuOpen(false)}
+                  className="p-3.5 rounded-xl hover:bg-[#0B1730] border border-transparent hover:border-[#C5A059]/30 flex items-center justify-between min-h-[48px]"
+                >
+                  <span>Contact</span>
+                  <span className="text-xs text-[#D4AF37] font-mono">03</span>
+                </a>
+              </nav>
             </div>
 
-            <p className="text-[10px] text-[#D4AF37] text-center font-mono font-bold uppercase tracking-wider">
-              DIGITAL GROWTH PARTNER FOR HEALTHCARE
-            </p>
-          </div>
+            {/* Mobile Drawer CTA & Social Channels */}
+            <div className="pt-6 border-t border-[#C5A059]/20 space-y-4">
+              <button
+                onClick={() => {
+                  setMobileMenuOpen(false);
+                  onOpenAuditModal();
+                }}
+                className="w-full py-4 rounded-xl bg-gradient-to-r from-[#D4AF37] to-[#C5A059] text-[#050B18] font-extrabold text-xs uppercase tracking-wider flex items-center justify-center gap-2 shadow-xl min-h-[48px] cursor-pointer"
+              >
+                <Sparkles className="w-4 h-4 text-[#050B18]" />
+                <span>Book Discovery Call</span>
+                <ArrowRight className="w-4 h-4" />
+              </button>
 
-        </div>
+              {/* Social Media Links */}
+              <div className="flex items-center justify-center gap-3 pt-2">
+                <a
+                  href={SITE_CONFIG.socials.facebook}
+                  target="_blank"
+                  rel="noopener noreferrer"
+                  className="w-9 h-9 rounded-xl bg-white/10 border border-white/10 flex items-center justify-center text-slate-300 hover:text-white hover:border-[#C5A059] hover:bg-[#C5A059]/20 transition-all"
+                  title="Follow MK Digitalverse on Facebook"
+                  aria-label="Facebook"
+                >
+                  <Facebook className="w-4 h-4" />
+                </a>
+                <a
+                  href={SITE_CONFIG.socials.instagram}
+                  target="_blank"
+                  rel="noopener noreferrer"
+                  className="w-9 h-9 rounded-xl bg-white/10 border border-white/10 flex items-center justify-center text-slate-300 hover:text-white hover:border-[#C5A059] hover:bg-[#C5A059]/20 transition-all"
+                  title="Follow MK Digitalverse on Instagram"
+                  aria-label="Instagram"
+                >
+                  <Instagram className="w-4 h-4" />
+                </a>
+                <a
+                  href={SITE_CONFIG.socials.linkedin}
+                  target="_blank"
+                  rel="noopener noreferrer"
+                  className="w-9 h-9 rounded-xl bg-white/10 border border-white/10 flex items-center justify-center text-slate-300 hover:text-white hover:border-[#C5A059] hover:bg-[#C5A059]/20 transition-all"
+                  title="Follow MK Digitalverse on LinkedIn"
+                  aria-label="LinkedIn"
+                >
+                  <Linkedin className="w-4 h-4" />
+                </a>
+                <a
+                  href={SITE_CONFIG.socials.youtube}
+                  target="_blank"
+                  rel="noopener noreferrer"
+                  className="w-9 h-9 rounded-xl bg-white/10 border border-white/10 flex items-center justify-center text-slate-300 hover:text-white hover:border-[#C5A059] hover:bg-[#C5A059]/20 transition-all"
+                  title="Subscribe to MK Digitalverse on YouTube"
+                  aria-label="YouTube"
+                >
+                  <Youtube className="w-4 h-4" />
+                </a>
+                <a
+                  href={SITE_CONFIG.socials.whatsapp}
+                  target="_blank"
+                  rel="noopener noreferrer"
+                  className="w-9 h-9 rounded-xl bg-emerald-600/20 border border-emerald-500/40 flex items-center justify-center text-emerald-400 hover:text-white hover:border-emerald-400 hover:bg-emerald-600 transition-all"
+                  title="Chat with MK Digitalverse on WhatsApp"
+                  aria-label="WhatsApp"
+                >
+                  <MessageCircle className="w-4 h-4" />
+                </a>
+              </div>
+
+              <p className="text-[10px] text-[#D4AF37] text-center font-mono font-bold uppercase tracking-wider">
+                DIGITAL GROWTH PARTNER FOR HEALTHCARE
+              </p>
+            </div>
+
+          </div>
+        </>
       )}
     </header>
   );

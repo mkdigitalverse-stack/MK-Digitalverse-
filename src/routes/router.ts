@@ -5,7 +5,7 @@
 
 import { useState, useEffect } from 'react';
 
-export type AppRoute = 'home' | 'about' | 'design-system' | '404';
+export type AppRoute = 'home' | 'about' | 'design-system' | 'admin-leads' | '404';
 
 export interface RouteState {
   currentRoute: AppRoute;
@@ -23,14 +23,16 @@ export function useRouter(): RouteState {
       const hash = window.location.hash;
       const pathname = window.location.pathname;
 
-      if (hash.includes('/design-system') || hash === '#design-system' || pathname === '/design-system') {
+      if (hash.includes('/admin/leads') || hash === '#admin/leads' || pathname === '/admin/leads' || pathname.startsWith('/admin')) {
+        setCurrentRoute('admin-leads');
+      } else if (hash.includes('/design-system') || hash === '#design-system' || pathname === '/design-system') {
         setCurrentRoute('design-system');
       } else if (hash.includes('/about') || hash === '#about' || pathname === '/about') {
         setCurrentRoute('about');
         window.scrollTo(0, 0);
-      } else if (hash.startsWith('#/') && hash !== '#/' && !hash.startsWith('#/design-system') && !hash.startsWith('#/about')) {
+      } else if (hash.startsWith('#/') && hash !== '#/' && !hash.startsWith('#/design-system') && !hash.startsWith('#/about') && !hash.startsWith('#/admin')) {
         setCurrentRoute('404');
-      } else if (pathname !== '/' && pathname !== '' && pathname !== '/index.html' && pathname !== '/design-system' && pathname !== '/about') {
+      } else if (pathname !== '/' && pathname !== '' && pathname !== '/index.html' && pathname !== '/design-system' && pathname !== '/about' && !pathname.startsWith('/admin')) {
         setCurrentRoute('404');
       } else {
         setCurrentRoute('home');
@@ -58,7 +60,10 @@ export function useRouter(): RouteState {
   };
 
   const navigateTo = (route: AppRoute, targetAnchor?: string) => {
-    if (route === 'design-system') {
+    if (route === 'admin-leads') {
+      window.location.hash = '#/admin/leads';
+      setCurrentRoute('admin-leads');
+    } else if (route === 'design-system') {
       window.location.hash = '#/design-system';
       setCurrentRoute('design-system');
     } else if (route === 'about') {

@@ -222,6 +222,11 @@ class AnalyticsService {
     });
   }
 
+  public trackCustomEvent(eventName: string, params?: Record<string, any>): void {
+    if (!this.enabled) return;
+    this.dispatch(eventName, params);
+  }
+
   /**
    * Internal Event Dispatcher to DataLayer & Console
    */
