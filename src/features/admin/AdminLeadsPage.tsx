@@ -8,8 +8,10 @@ import { AdminLeadFilters, FilterState } from './AdminLeadFilters';
 import { AdminLeadTable } from './AdminLeadTable';
 import { AdminPipelineBoard } from './AdminPipelineBoard';
 import { AdminFollowUpsView } from './AdminFollowUpsView';
+import { AdminNotificationCenter } from './AdminNotificationCenter';
+import { AdminGrowthAnalyticsView } from './AdminGrowthAnalyticsView';
 import { AdminLeadDetailModal } from './AdminLeadDetailModal';
-import { ShieldCheck, Lock, AlertOctagon, ArrowLeft, RefreshCw, LayoutGrid, Table, CalendarClock } from 'lucide-react';
+import { ShieldCheck, Lock, AlertOctagon, ArrowLeft, RefreshCw, LayoutGrid, Table, CalendarClock, Bell, LineChart } from 'lucide-react';
 
 interface AdminLeadsPageProps {
   onReturnHome: () => void;
@@ -38,7 +40,7 @@ export const AdminLeadsPage: React.FC<AdminLeadsPageProps> = ({ onReturnHome }) 
   const [isLoadingLeads, setIsLoadingLeads] = useState<boolean>(true);
   const [leadFetchError, setLeadFetchError] = useState<string | null>(null);
 
-  const [activeViewTab, setActiveViewTab] = useState<'pipeline' | 'database' | 'followups'>('pipeline');
+  const [activeViewTab, setActiveViewTab] = useState<'pipeline' | 'database' | 'followups' | 'notifications' | 'analytics'>('pipeline');
   const [filters, setFilters] = useState<FilterState>(initialFilters);
   const [selectedLead, setSelectedLead] = useState<CompleteLeadRecord | null>(null);
   const [isRefreshing, setIsRefreshing] = useState<boolean>(false);
@@ -109,10 +111,20 @@ export const AdminLeadsPage: React.FC<AdminLeadsPageProps> = ({ onReturnHome }) 
   const handleUpdateStage = async (leadId: string, newStage: OpportunityStage) => {
     const targetLead = leads.find(l => l.leadId === leadId);
     const estVal = targetLead?.qualification.estimatedOpportunityValue || 0;
+    const oldStage = targetLead?.qualification.opportunityStage || 'new';
+    
     await adminLeadsService.updateLead(leadId, { 
       opportunityStage: newStage,
       estimatedOpportunityValue: estVal
     });
+
+    if (oldStage !== newStage) {
+      await adminLeadsService.addActivity(leadId, {
+        type: 'stage_change',
+        description: `Moved stage from ${oldStage.toUpperCase()} to ${newStage.toUpperCase()}`,
+        actor: targetLead?.qualification.assignedTo || 'Growth Partner'
+      });
+    }
   };
 
   // 3. Filter and Sort Leads
@@ -353,6 +365,30 @@ export const AdminLeadsPage: React.FC<AdminLeadsPageProps> = ({ onReturnHome }) 
                 <CalendarClock className="w-3.5 h-3.5" />
                 <span>Follow-Up Queue</span>
               </button>
+
+              <button
+                onClick={() => setActiveViewTab('notifications')}
+                className={`inline-flex items-center space-x-1.5 px-3 py-1.5 rounded-lg text-xs font-bold transition-all ${
+                  activeViewTab === 'notifications'
+                    ? 'bg-amber-600 text-white shadow-xs'
+                    : 'text-slate-700 hover:text-slate-900 hover:bg-slate-300/50'
+                }`}
+              >
+                <Bell className="w-3.5 h-3.5" />
+                <span>Notification Center</span>
+              </button>
+
+              <button
+                onClick={() => setActiveViewTab('analytics')}
+                className={`inline-flex items-center space-x-1.5 px-3 py-1.5 rounded-lg text-xs font-bold transition-all ${
+                  activeViewTab === 'analytics'
+                    ? 'bg-amber-600 text-white shadow-xs'
+                    : 'text-slate-700 hover:text-slate-900 hover:bg-slate-300/50'
+                }`}
+              >
+                <LineChart className="w-3.5 h-3.5" />
+                <span>Analytics & Intelligence</span>
+              </button>
             </div>
 
             <button
@@ -408,6 +444,14 @@ export const AdminLeadsPage: React.FC<AdminLeadsPageProps> = ({ onReturnHome }) 
             leads={leads}
             onSelectLead={setSelectedLead}
           />
+        )}
+
+        {activeViewTab === 'notifications' && (
+          <AdminNotificationCenter leads={leads} />
+        )}
+
+        {activeViewTab === 'analytics' && (
+          <AdminGrowthAnalyticsView leads={leads} />
         )}
 
         {/* Lead Detail Slide-over / Modal */}

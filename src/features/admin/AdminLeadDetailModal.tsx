@@ -236,9 +236,83 @@ export const AdminLeadDetailModal: React.FC<AdminLeadDetailModalProps> = ({
     if (status === 'new') {
       setStatus('contacted');
     }
+    if (opportunityStage === 'new') {
+      setOpportunityStage('contacted');
+    }
     await adminLeadsService.addActivity(lead.leadId, {
-      type: 'contact_made',
-      description: 'Marked contacted via Opportunity Workspace',
+      type: 'contacted',
+      description: 'Contact made with healthcare practice lead',
+      actor: assignedTo || 'Growth Partner'
+    });
+  };
+
+  const handleQuickDiscovery = async () => {
+    const todayStr = new Date().toISOString().slice(0, 10);
+    setDiscoveryDate(todayStr);
+    setOpportunityStage('discovery');
+    await adminLeadsService.addActivity(lead.leadId, {
+      type: 'discovery_scheduled',
+      description: `Discovery session scheduled for ${todayStr}`,
+      actor: assignedTo || 'Growth Partner'
+    });
+  };
+
+  const handleQuickAudit = async () => {
+    setOpportunityStage('discovery');
+    await adminLeadsService.addActivity(lead.leadId, {
+      type: 'audit_completed',
+      description: 'Healthcare Growth Audit & Diagnosis completed for practice',
+      actor: assignedTo || 'Growth Partner'
+    });
+  };
+
+  const handleQuickProposal = async () => {
+    const todayStr = new Date().toISOString().slice(0, 10);
+    setProposalStatus('sent');
+    setProposalSentAt(todayStr);
+    setOpportunityStage('proposal');
+    const val = proposalValue || estimatedOpportunityValue || 25000;
+    if (!proposalValue) setProposalValue(val);
+    await adminLeadsService.addActivity(lead.leadId, {
+      type: 'proposal_sent',
+      description: `Proposal sent with contract value $${val.toLocaleString()}`,
+      actor: assignedTo || 'Growth Partner'
+    });
+  };
+
+  const handleQuickNegotiation = async () => {
+    setOpportunityStage('negotiation');
+    await adminLeadsService.addActivity(lead.leadId, {
+      type: 'negotiation',
+      description: 'Entered commercial negotiation & contract terms discussion',
+      actor: assignedTo || 'Growth Partner'
+    });
+  };
+
+  const handleQuickWon = async () => {
+    const todayStr = new Date().toISOString().slice(0, 10);
+    const val = finalContractValue || proposalValue || estimatedOpportunityValue || 25000;
+    setWonDate(todayStr);
+    setFinalContractValue(val);
+    setOpportunityStage('won');
+    setStatus('won');
+    await adminLeadsService.addActivity(lead.leadId, {
+      type: 'won',
+      description: `Opportunity Closed Won! Final Contract Value: $${val.toLocaleString()}`,
+      actor: assignedTo || 'Growth Partner'
+    });
+  };
+
+  const handleQuickLost = async () => {
+    const todayStr = new Date().toISOString().slice(0, 10);
+    const reason = lostReason || 'budget';
+    setLostDate(todayStr);
+    setLostReason(reason);
+    setOpportunityStage('lost');
+    setStatus('lost');
+    await adminLeadsService.addActivity(lead.leadId, {
+      type: 'lost',
+      description: `Opportunity Closed Lost. Reason: ${reason}`,
       actor: assignedTo || 'Growth Partner'
     });
   };
@@ -317,6 +391,80 @@ export const AdminLeadDetailModal: React.FC<AdminLeadDetailModalProps> = ({
               <span>{errorMessage}</span>
             </div>
           )}
+
+          {/* Quick Sales Actions Toolbar */}
+          <div className="bg-slate-900 text-white rounded-xl p-3 border border-slate-800 space-y-2">
+            <div className="flex items-center justify-between border-b border-slate-800 pb-2">
+              <span className="text-[10px] font-bold uppercase tracking-wider text-amber-400">
+                Sales Pipeline Execution Shortcuts
+              </span>
+              <span className="text-[10px] text-slate-400 font-mono">1-Click Life-Cycle Actions</span>
+            </div>
+            <div className="flex flex-wrap gap-2 text-xs">
+              <button
+                type="button"
+                onClick={handleMarkContactedNow}
+                className="px-2.5 py-1.5 bg-amber-500/20 hover:bg-amber-500/30 text-amber-300 border border-amber-500/30 rounded-lg font-medium transition-colors flex items-center space-x-1"
+              >
+                <Phone className="w-3.5 h-3.5" />
+                <span>Mark Contacted</span>
+              </button>
+
+              <button
+                type="button"
+                onClick={handleQuickDiscovery}
+                className="px-2.5 py-1.5 bg-indigo-500/20 hover:bg-indigo-500/30 text-indigo-300 border border-indigo-500/30 rounded-lg font-medium transition-colors flex items-center space-x-1"
+              >
+                <Calendar className="w-3.5 h-3.5" />
+                <span>Schedule Discovery</span>
+              </button>
+
+              <button
+                type="button"
+                onClick={handleQuickAudit}
+                className="px-2.5 py-1.5 bg-blue-500/20 hover:bg-blue-500/30 text-blue-300 border border-blue-500/30 rounded-lg font-medium transition-colors flex items-center space-x-1"
+              >
+                <Sparkles className="w-3.5 h-3.5" />
+                <span>Growth Audit</span>
+              </button>
+
+              <button
+                type="button"
+                onClick={handleQuickProposal}
+                className="px-2.5 py-1.5 bg-purple-500/20 hover:bg-purple-500/30 text-purple-300 border border-purple-500/30 rounded-lg font-medium transition-colors flex items-center space-x-1"
+              >
+                <FileText className="w-3.5 h-3.5" />
+                <span>Send Proposal</span>
+              </button>
+
+              <button
+                type="button"
+                onClick={handleQuickNegotiation}
+                className="px-2.5 py-1.5 bg-rose-500/20 hover:bg-rose-500/30 text-rose-300 border border-rose-500/30 rounded-lg font-medium transition-colors flex items-center space-x-1"
+              >
+                <Handshake className="w-3.5 h-3.5" />
+                <span>Negotiation</span>
+              </button>
+
+              <button
+                type="button"
+                onClick={handleQuickWon}
+                className="px-2.5 py-1.5 bg-emerald-500/20 hover:bg-emerald-500/30 text-emerald-300 border border-emerald-500/30 rounded-lg font-bold transition-colors flex items-center space-x-1"
+              >
+                <ThumbsUp className="w-3.5 h-3.5 text-emerald-400" />
+                <span>Mark Won</span>
+              </button>
+
+              <button
+                type="button"
+                onClick={handleQuickLost}
+                className="px-2.5 py-1.5 bg-slate-800 hover:bg-slate-700 text-slate-300 border border-slate-700 rounded-lg font-medium transition-colors flex items-center space-x-1"
+              >
+                <ThumbsDown className="w-3.5 h-3.5 text-slate-400" />
+                <span>Mark Lost</span>
+              </button>
+            </div>
+          </div>
 
           {/* SECTION 1 — PIPELINE & FINANCIAL CONTROLS */}
           <div className="bg-amber-500/5 border border-amber-500/20 rounded-xl p-4 space-y-4">
@@ -532,18 +680,43 @@ export const AdminLeadDetailModal: React.FC<AdminLeadDetailModalProps> = ({
                 </div>
               </div>
 
-              {activities.map((act, idx) => (
-                <div key={act.id || idx} className="flex items-start space-x-3 text-xs">
-                  <div className="w-2 h-2 rounded-full bg-amber-500 mt-1.5 shrink-0" />
-                  <div className="flex-1 bg-slate-950 p-2.5 rounded border border-slate-800">
-                    <div className="flex items-center justify-between text-[10px] text-slate-400 font-mono mb-0.5">
-                      <span className="font-bold text-slate-200">{act.actor}</span>
-                      <span>{new Date(act.timestamp).toLocaleString()}</span>
+              {activities.map((act, idx) => {
+                const typeColors: Record<string, string> = {
+                  stage_change: 'text-amber-400 bg-amber-950/60 border-amber-800',
+                  contacted: 'text-blue-400 bg-blue-950/60 border-blue-800',
+                  contact_made: 'text-blue-400 bg-blue-950/60 border-blue-800',
+                  discovery_scheduled: 'text-indigo-400 bg-indigo-950/60 border-indigo-800',
+                  discovery_completed: 'text-indigo-300 bg-indigo-950/80 border-indigo-700',
+                  audit_completed: 'text-sky-400 bg-sky-950/60 border-sky-800',
+                  proposal_sent: 'text-purple-400 bg-purple-950/60 border-purple-800',
+                  negotiation: 'text-rose-400 bg-rose-950/60 border-rose-800',
+                  follow_up: 'text-emerald-400 bg-emerald-950/60 border-emerald-800',
+                  follow_up_scheduled: 'text-emerald-400 bg-emerald-950/60 border-emerald-800',
+                  won: 'text-teal-300 bg-teal-950/80 border-teal-700',
+                  lost: 'text-slate-400 bg-slate-900 border-slate-700',
+                  note: 'text-amber-300 bg-slate-900 border-slate-700',
+                  note_added: 'text-amber-300 bg-slate-900 border-slate-700'
+                };
+                const tagStyle = typeColors[act.type] || 'text-slate-300 bg-slate-900 border-slate-800';
+
+                return (
+                  <div key={act.id || idx} className="flex items-start space-x-3 text-xs">
+                    <div className="w-2 h-2 rounded-full bg-amber-500 mt-1.5 shrink-0" />
+                    <div className="flex-1 bg-slate-950 p-2.5 rounded border border-slate-800">
+                      <div className="flex items-center justify-between text-[10px] font-mono mb-1 gap-2">
+                        <div className="flex items-center space-x-1.5">
+                          <span className="font-bold text-slate-200">{act.actor}</span>
+                          <span className={`px-1.5 py-0.2 rounded border uppercase font-semibold text-[9px] ${tagStyle}`}>
+                            {act.type.replace('_', ' ')}
+                          </span>
+                        </div>
+                        <span className="text-slate-400">{new Date(act.timestamp).toLocaleString()}</span>
+                      </div>
+                      <p className="text-slate-300">{act.description}</p>
                     </div>
-                    <p className="text-slate-300">{act.description}</p>
                   </div>
-                </div>
-              ))}
+                );
+              })}
             </div>
           </div>
 

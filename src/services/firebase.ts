@@ -213,6 +213,25 @@ class FirebaseManager {
           localStorage.setItem('mk_leads_queue', JSON.stringify(updatedQueue));
         } catch (_) {}
 
+        // Trigger server-side notification worker asynchronously
+        fetch('/api/notifications/process', {
+          method: 'POST',
+          headers: { 'Content-Type': 'application/json' },
+          body: JSON.stringify({
+            leadId,
+            leadType: fullLeadData.leadType,
+            contactName: fullLeadData.contactName,
+            organizationName: fullLeadData.organizationName,
+            email: fullLeadData.email,
+            phone: fullLeadData.phone,
+            website: fullLeadData.website,
+            healthcareCategory: fullLeadData.healthcareCategory,
+            biggestChallenge: fullLeadData.biggestChallenge,
+            growthObjective: fullLeadData.growthObjective,
+            investmentReadiness: fullLeadData.investmentReadiness
+          })
+        }).catch(err => console.warn('[FirebaseManager] Async notification server call note:', err));
+
         return { success: true, leadId, source: 'firestore' };
       } catch (error) {
         console.warn('[FirebaseManager] Firestore lead save error, preserved in local queue:', error);

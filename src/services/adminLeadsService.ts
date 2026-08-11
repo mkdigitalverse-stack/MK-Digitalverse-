@@ -35,7 +35,23 @@ import {
 
 export interface LeadActivity {
   id?: string;
-  type: 'stage_change' | 'contact_made' | 'follow_up_scheduled' | 'note_added' | 'proposal_sent' | 'value_updated' | 'status_change';
+  type: 
+    | 'stage_change' 
+    | 'contacted' 
+    | 'contact_made' 
+    | 'discovery_scheduled' 
+    | 'discovery_completed' 
+    | 'audit_completed' 
+    | 'proposal_sent' 
+    | 'negotiation' 
+    | 'follow_up' 
+    | 'follow_up_scheduled' 
+    | 'won' 
+    | 'lost' 
+    | 'note' 
+    | 'note_added' 
+    | 'value_updated' 
+    | 'status_change';
   description: string;
   actor: string;
   timestamp: string;
