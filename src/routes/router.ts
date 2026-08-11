@@ -5,7 +5,7 @@
 
 import { useState, useEffect } from 'react';
 
-export type AppRoute = 'home' | 'design-system';
+export type AppRoute = 'home' | 'about' | 'design-system' | '404';
 
 export interface RouteState {
   currentRoute: AppRoute;
@@ -25,6 +25,13 @@ export function useRouter(): RouteState {
 
       if (hash.includes('/design-system') || hash === '#design-system' || pathname === '/design-system') {
         setCurrentRoute('design-system');
+      } else if (hash.includes('/about') || hash === '#about' || pathname === '/about') {
+        setCurrentRoute('about');
+        window.scrollTo(0, 0);
+      } else if (hash.startsWith('#/') && hash !== '#/' && !hash.startsWith('#/design-system') && !hash.startsWith('#/about')) {
+        setCurrentRoute('404');
+      } else if (pathname !== '/' && pathname !== '' && pathname !== '/index.html' && pathname !== '/design-system' && pathname !== '/about') {
+        setCurrentRoute('404');
       } else {
         setCurrentRoute('home');
         if (hash && !hash.includes('/')) {
@@ -54,12 +61,17 @@ export function useRouter(): RouteState {
     if (route === 'design-system') {
       window.location.hash = '#/design-system';
       setCurrentRoute('design-system');
+    } else if (route === 'about') {
+      window.location.hash = '#/about';
+      setCurrentRoute('about');
+      window.scrollTo(0, 0);
     } else {
       if (targetAnchor) {
         window.location.hash = `#${targetAnchor}`;
         scrollToAnchor(targetAnchor);
       } else {
         window.location.hash = '';
+        window.scrollTo(0, 0);
       }
       setCurrentRoute('home');
     }

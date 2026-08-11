@@ -1,5 +1,6 @@
 import React, { useState, useEffect } from 'react';
 import { IndustryType } from '../../types';
+import { SITE_CONFIG } from '../../config/site';
 import { 
   HeartPulse, 
   ArrowRight, 
@@ -7,12 +8,21 @@ import {
   X, 
   Sparkles,
   ChevronDown,
+  Facebook,
+  Linkedin,
+  Instagram,
+  Youtube,
+  MessageCircle,
   Target,
   Award,
   Cpu,
   Code2,
   Zap,
-  BarChart3
+  Building2,
+  Users,
+  ShieldCheck,
+  BarChart2,
+  Info
 } from 'lucide-react';
 
 interface HeaderProps {
@@ -28,7 +38,7 @@ export const Header: React.FC<HeaderProps> = ({
 }) => {
   const [scrolled, setScrolled] = useState(false);
   const [mobileMenuOpen, setMobileMenuOpen] = useState(false);
-  const [activeDropdown, setActiveDropdown] = useState<'solutions' | 'frameworks' | null>(null);
+  const [activeDropdown, setActiveDropdown] = useState<'solutions' | 'about' | null>(null);
 
   useEffect(() => {
     const handleScroll = () => {
@@ -44,152 +54,67 @@ export const Header: React.FC<HeaderProps> = ({
     <header 
       className={`fixed top-0 left-0 right-0 z-50 transition-all duration-300 ${
         scrolled 
-          ? 'bg-[#050505]/90 backdrop-blur-md border-b border-white/10 py-3 shadow-2xl shadow-black/80' 
-          : 'bg-transparent py-5'
+          ? 'bg-[#050B18]/90 backdrop-blur-xl border-b border-[#C5A059]/30 py-3 shadow-2xl shadow-black/50' 
+          : 'bg-[#050B18]/75 backdrop-blur-md border-b border-white/10 py-4'
       }`}
     >
       <div className="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8">
         <div className="flex items-center justify-between">
           
-          {/* Logo & Executive Brand Tagline */}
+          {/* Brand Logo & Tagline */}
           <a 
             href="#" 
-            className="flex items-center gap-3 group focus:outline-none focus:ring-2 focus:ring-amber-400 rounded-xl p-1"
+            className="flex items-center gap-3 group focus:outline-none focus:ring-2 focus:ring-[#C5A059] rounded-xl p-1"
             aria-label="MK Digitalverse Home"
           >
-            <div className="w-9 h-9 rounded-xl bg-white/10 border border-white/15 p-[1px] group-hover:border-white/30 transition-all">
-              <div className="w-full h-full bg-[#050505] rounded-[11px] flex items-center justify-center">
-                <span className="font-display font-black text-lg text-white tracking-tight">
+            <div className="w-10 h-10 rounded-xl bg-gradient-to-br from-[#0A192F] to-[#1E3A8A] p-[1.5px] shadow-md shadow-slate-900/40 group-hover:scale-105 transition-all shrink-0">
+              <div className="w-full h-full bg-[#050B18] rounded-[10px] flex items-center justify-center border border-[#C5A059]/30">
+                <span className="font-display font-black text-lg text-[#D4AF37] tracking-tight">
                   MK
                 </span>
               </div>
             </div>
-            <div className="flex flex-col">
-              <div className="flex items-center gap-2">
-                <span className="font-display font-bold text-base text-white tracking-tight group-hover:text-amber-400 transition-colors">
-                  MK DIGITALVERSE
-                </span>
-                <span className="hidden sm:inline-block text-[10px] font-semibold uppercase tracking-widest px-2 py-0.5 rounded-full bg-white/5 text-zinc-300 border border-white/10">
-                  Growth Partner
-                </span>
-              </div>
-              <span className="text-[11px] text-zinc-400 font-medium hidden md:block">
-                Healthcare Practice
+            <div className="flex flex-col justify-center">
+              <span className="font-display font-extrabold text-base text-white tracking-tight group-hover:text-[#D4AF37] transition-colors leading-tight">
+                MK Digitalverse
+              </span>
+              <span className="text-[9px] sm:text-[10px] font-mono font-bold text-[#D4AF37] uppercase tracking-wider block leading-tight mt-0.5">
+                DIGITAL GROWTH PARTNER FOR HEALTHCARE
               </span>
             </div>
           </a>
 
-          {/* Desktop Navigation Links */}
-          <nav className="hidden lg:flex items-center gap-6 text-xs font-semibold tracking-wider text-zinc-300 uppercase">
+          {/* Desktop Navigation Links - LOCKED TO ONLY: Solutions, About, Contact */}
+          <nav className="hidden lg:flex items-center gap-8 font-display text-sm font-semibold text-slate-200">
             
-            {/* Solutions Dropdown */}
-            <div className="relative">
-              <button 
-                onClick={() => setActiveDropdown(activeDropdown === 'solutions' ? null : 'solutions')}
-                onBlur={() => setTimeout(closeDropdowns, 200)}
-                className="flex items-center gap-1.5 hover:text-white transition-colors focus:outline-none focus:text-amber-400 py-2 min-h-[44px]"
-                aria-expanded={activeDropdown === 'solutions'}
-                aria-haspopup="true"
-              >
-                <span>Solutions</span>
-                <ChevronDown className={`w-3.5 h-3.5 transition-transform ${activeDropdown === 'solutions' ? 'rotate-180 text-amber-400' : ''}`} />
-              </button>
-
-              {activeDropdown === 'solutions' && (
-                <div className="absolute top-full left-0 mt-2 w-80 glass-panel rounded-2xl p-2.5 shadow-2xl border border-white/15 bg-[#09090b] z-50">
-                  <a
-                    href="#capabilities"
-                    onClick={closeDropdowns}
-                    className="flex items-start gap-3 p-2.5 rounded-xl hover:bg-white/5 text-zinc-200 transition-colors"
-                  >
-                    <Target className="w-4 h-4 text-amber-400 mt-0.5 shrink-0" />
-                    <div>
-                      <div className="font-bold text-xs text-white">Healthcare Growth Strategy</div>
-                      <div className="text-[10px] text-zinc-400 normal-case">Measurable revenue growth roadmap</div>
-                    </div>
-                  </a>
-
-                  <a
-                    href="#capabilities"
-                    onClick={closeDropdowns}
-                    className="flex items-start gap-3 p-2.5 rounded-xl hover:bg-white/5 text-zinc-200 transition-colors"
-                  >
-                    <Award className="w-4 h-4 text-emerald-400 mt-0.5 shrink-0" />
-                    <div>
-                      <div className="font-bold text-xs text-white">Brand Positioning</div>
-                      <div className="text-[10px] text-zinc-400 normal-case">Clinical authority & high trust</div>
-                    </div>
-                  </a>
-
-                  <a
-                    href="#capabilities"
-                    onClick={closeDropdowns}
-                    className="flex items-start gap-3 p-2.5 rounded-xl hover:bg-amber-400/10 border border-amber-400/30 text-amber-300 transition-colors bg-amber-500/5"
-                  >
-                    <Code2 className="w-4 h-4 text-amber-400 mt-0.5 shrink-0" />
-                    <div>
-                      <div className="font-bold text-xs text-white flex items-center gap-1">
-                        <span>Conversion-Focused Websites</span>
-                        <Sparkles className="w-3 h-3 text-amber-400" />
-                      </div>
-                      <div className="text-[10px] text-amber-200/80 normal-case">Flagship Next.js conversion engine</div>
-                    </div>
-                  </a>
-
-                  <a
-                    href="#capabilities"
-                    onClick={closeDropdowns}
-                    className="flex items-start gap-3 p-2.5 rounded-xl hover:bg-white/5 text-zinc-200 transition-colors"
-                  >
-                    <Cpu className="w-4 h-4 text-cyan-400 mt-0.5 shrink-0" />
-                    <div>
-                      <div className="font-bold text-xs text-white">AI-Powered Business Systems</div>
-                      <div className="text-[10px] text-zinc-400 normal-case">24/7 lead triage & operational efficiency</div>
-                    </div>
-                  </a>
-
-                  <a
-                    href="#capabilities"
-                    onClick={closeDropdowns}
-                    className="flex items-start gap-3 p-2.5 rounded-xl hover:bg-white/5 text-zinc-200 transition-colors"
-                  >
-                    <Zap className="w-4 h-4 text-emerald-400 mt-0.5 shrink-0" />
-                    <div>
-                      <div className="font-bold text-xs text-white">Performance Marketing</div>
-                      <div className="text-[10px] text-zinc-400 normal-case">Data-driven patient enquiry campaigns</div>
-                    </div>
-                  </a>
-                </div>
-              )}
-            </div>
-
-            <a href="#growth-system" className="hover:text-white transition-colors py-2 min-h-[44px] flex items-center">
-              Growth System™
+            <a 
+              href="#capabilities" 
+              className="hover:text-[#D4AF37] transition-colors py-2 min-h-[44px] flex items-center cursor-pointer"
+            >
+              Solutions
             </a>
 
-            <a href="#roi-calculator" className="hover:text-white transition-colors py-2 min-h-[44px] flex items-center">
-              ROI Model
-            </a>
-
-            <a href="#case-studies" className="hover:text-white transition-colors py-2 min-h-[44px] flex items-center">
-              Insights
-            </a>
-            
-            <a href="#why-mk" className="hover:text-white transition-colors py-2 min-h-[44px] flex items-center">
+            <a 
+              href="#/about" 
+              className="hover:text-[#D4AF37] transition-colors py-2 min-h-[44px] flex items-center cursor-pointer"
+            >
               About
             </a>
 
-            <a href="#faq" className="hover:text-white transition-colors py-2 min-h-[44px] flex items-center">
+            <a 
+              href="#faq" 
+              className="hover:text-[#D4AF37] transition-colors py-2 min-h-[44px] flex items-center cursor-pointer"
+            >
               Contact
             </a>
+
           </nav>
 
-          {/* Right Desktop CTA */}
+          {/* Right Desktop Call-to-Action */}
           <div className="hidden md:flex items-center gap-4">
-            {/* Book Discovery Call Button */}
             <button
               onClick={onOpenAuditModal}
-              className="px-5 py-2.5 rounded-full bg-white text-black font-bold text-xs uppercase tracking-wider hover:bg-zinc-200 active:scale-95 transition-all shadow-md flex items-center gap-1.5 min-h-[44px]"
+              className="px-5 py-2.5 rounded-xl bg-gradient-to-r from-[#D4AF37] to-[#C5A059] hover:from-[#E5C158] hover:to-[#D4AF37] text-[#050B18] font-display font-extrabold text-xs uppercase tracking-wider transition-all shadow-md shadow-amber-900/30 border border-[#C5A059]/40 flex items-center gap-2 cursor-pointer hover:scale-[1.02] active:scale-95 min-h-[44px]"
             >
               <span>Book Discovery Call</span>
               <ArrowRight className="w-3.5 h-3.5" />
@@ -200,13 +125,13 @@ export const Header: React.FC<HeaderProps> = ({
           <div className="lg:hidden flex items-center gap-2">
             <button
               onClick={onOpenAuditModal}
-              className="px-3.5 py-2 rounded-full bg-white text-black font-bold text-xs uppercase tracking-wider min-h-[44px] flex items-center justify-center"
+              className="px-3.5 py-2 rounded-xl bg-[#D4AF37] text-[#050B18] font-bold text-xs uppercase tracking-wider min-h-[44px] flex items-center justify-center cursor-pointer shadow-md"
             >
               Book Call
             </button>
             <button
               onClick={() => setMobileMenuOpen(!mobileMenuOpen)}
-              className="p-2.5 rounded-xl bg-zinc-900 border border-white/10 text-zinc-300 hover:text-white min-h-[44px] min-w-[44px] flex items-center justify-center focus:outline-none focus:ring-2 focus:ring-amber-400"
+              className="p-2.5 rounded-xl bg-[#0B1730] border border-white/15 text-white hover:bg-[#102240] min-h-[44px] min-w-[44px] flex items-center justify-center focus:outline-none focus:ring-2 focus:ring-[#C5A059]"
               aria-label={mobileMenuOpen ? 'Close Navigation Menu' : 'Open Navigation Menu'}
               aria-expanded={mobileMenuOpen}
             >
@@ -219,74 +144,109 @@ export const Header: React.FC<HeaderProps> = ({
 
       {/* Full-Screen Mobile Drawer */}
       {mobileMenuOpen && (
-        <div className="lg:hidden fixed inset-x-0 top-[65px] bottom-0 bg-[#050505]/95 backdrop-blur-2xl z-50 border-t border-white/10 px-6 py-8 overflow-y-auto flex flex-col justify-between animate-in fade-in slide-in-from-top-4 duration-200">
+        <div className="lg:hidden fixed inset-x-0 top-[65px] bottom-0 bg-[#050B18]/98 backdrop-blur-2xl z-50 border-t border-[#C5A059]/20 px-6 py-8 overflow-y-auto flex flex-col justify-between animate-in fade-in slide-in-from-top-4 duration-200 text-white">
           
           <div className="space-y-6">
-            {/* Mobile Nav Links */}
-            <nav className="flex flex-col gap-2 font-display text-base font-bold text-zinc-200">
+            <nav className="flex flex-col gap-3 font-display text-base font-bold text-slate-100">
               <a 
                 href="#capabilities" 
                 onClick={() => setMobileMenuOpen(false)}
-                className="p-3 rounded-xl hover:bg-zinc-900 border border-transparent hover:border-white/5 flex items-center justify-between min-h-[44px]"
+                className="p-3.5 rounded-xl hover:bg-[#0B1730] border border-transparent hover:border-[#C5A059]/30 flex items-center justify-between min-h-[48px]"
               >
                 <span>Solutions</span>
-                <span className="text-xs text-amber-400 font-mono">01</span>
+                <span className="text-xs text-[#D4AF37] font-mono">01</span>
               </a>
 
               <a 
-                href="#roi-calculator" 
+                href="#/about" 
                 onClick={() => setMobileMenuOpen(false)}
-                className="p-3 rounded-xl bg-amber-500/10 text-amber-300 border border-amber-500/20 flex items-center justify-between min-h-[44px]"
-              >
-                <span>Interactive ROI Model</span>
-                <BarChart3 className="w-4 h-4" />
-              </a>
-
-              <a 
-                href="#case-studies" 
-                onClick={() => setMobileMenuOpen(false)}
-                className="p-3 rounded-xl hover:bg-zinc-900 border border-transparent hover:border-white/5 flex items-center justify-between min-h-[44px]"
-              >
-                <span>Insights & Proof</span>
-                <span className="text-xs text-amber-400 font-mono">02</span>
-              </a>
-
-              <a 
-                href="#why-mk" 
-                onClick={() => setMobileMenuOpen(false)}
-                className="p-3 rounded-xl hover:bg-zinc-900 border border-transparent hover:border-white/5 flex items-center justify-between min-h-[44px]"
+                className="p-3.5 rounded-xl hover:bg-[#0B1730] border border-transparent hover:border-[#C5A059]/30 flex items-center justify-between min-h-[48px]"
               >
                 <span>About</span>
-                <span className="text-xs text-amber-400 font-mono">03</span>
+                <span className="text-xs text-[#D4AF37] font-mono">02</span>
               </a>
 
               <a 
                 href="#faq" 
                 onClick={() => setMobileMenuOpen(false)}
-                className="p-3 rounded-xl hover:bg-zinc-900 border border-transparent hover:border-white/5 flex items-center justify-between min-h-[44px]"
+                className="p-3.5 rounded-xl hover:bg-[#0B1730] border border-transparent hover:border-[#C5A059]/30 flex items-center justify-between min-h-[48px]"
               >
                 <span>Contact</span>
-                <span className="text-xs text-amber-400 font-mono">04</span>
+                <span className="text-xs text-[#D4AF37] font-mono">03</span>
               </a>
             </nav>
-
           </div>
 
-          {/* Sticky Drawer CTA */}
-          <div className="pt-6 border-t border-white/10 space-y-3">
+          {/* Mobile Drawer CTA & Social Channels */}
+          <div className="pt-6 border-t border-[#C5A059]/20 space-y-4">
             <button
               onClick={() => {
                 setMobileMenuOpen(false);
                 onOpenAuditModal();
               }}
-              className="w-full py-4 rounded-xl bg-white text-black font-bold text-xs uppercase tracking-wider flex items-center justify-center gap-2 shadow-2xl min-h-[48px]"
+              className="w-full py-4 rounded-xl bg-gradient-to-r from-[#D4AF37] to-[#C5A059] text-[#050B18] font-extrabold text-xs uppercase tracking-wider flex items-center justify-center gap-2 shadow-xl min-h-[48px] cursor-pointer"
             >
-              <Sparkles className="w-4 h-4 text-amber-500" />
+              <Sparkles className="w-4 h-4 text-[#050B18]" />
               <span>Book Discovery Call</span>
               <ArrowRight className="w-4 h-4" />
             </button>
-            <p className="text-[11px] text-zinc-500 text-center font-mono uppercase tracking-wider">
-              Strategic Digital Growth Partner
+
+            {/* Social Media Links */}
+            <div className="flex items-center justify-center gap-3 pt-2">
+              <a
+                href={SITE_CONFIG.socials.facebook}
+                target="_blank"
+                rel="noopener noreferrer"
+                className="w-9 h-9 rounded-xl bg-white/10 border border-white/10 flex items-center justify-center text-slate-300 hover:text-white hover:border-[#C5A059] hover:bg-[#C5A059]/20 transition-all"
+                title="Follow MK Digitalverse on Facebook"
+                aria-label="Facebook"
+              >
+                <Facebook className="w-4 h-4" />
+              </a>
+              <a
+                href={SITE_CONFIG.socials.instagram}
+                target="_blank"
+                rel="noopener noreferrer"
+                className="w-9 h-9 rounded-xl bg-white/10 border border-white/10 flex items-center justify-center text-slate-300 hover:text-white hover:border-[#C5A059] hover:bg-[#C5A059]/20 transition-all"
+                title="Follow MK Digitalverse on Instagram"
+                aria-label="Instagram"
+              >
+                <Instagram className="w-4 h-4" />
+              </a>
+              <a
+                href={SITE_CONFIG.socials.linkedin}
+                target="_blank"
+                rel="noopener noreferrer"
+                className="w-9 h-9 rounded-xl bg-white/10 border border-white/10 flex items-center justify-center text-slate-300 hover:text-white hover:border-[#C5A059] hover:bg-[#C5A059]/20 transition-all"
+                title="Follow MK Digitalverse on LinkedIn"
+                aria-label="LinkedIn"
+              >
+                <Linkedin className="w-4 h-4" />
+              </a>
+              <a
+                href={SITE_CONFIG.socials.youtube}
+                target="_blank"
+                rel="noopener noreferrer"
+                className="w-9 h-9 rounded-xl bg-white/10 border border-white/10 flex items-center justify-center text-slate-300 hover:text-white hover:border-[#C5A059] hover:bg-[#C5A059]/20 transition-all"
+                title="Subscribe to MK Digitalverse on YouTube"
+                aria-label="YouTube"
+              >
+                <Youtube className="w-4 h-4" />
+              </a>
+              <a
+                href={SITE_CONFIG.socials.whatsapp}
+                target="_blank"
+                rel="noopener noreferrer"
+                className="w-9 h-9 rounded-xl bg-emerald-600/20 border border-emerald-500/40 flex items-center justify-center text-emerald-400 hover:text-white hover:border-emerald-400 hover:bg-emerald-600 transition-all"
+                title="Chat with MK Digitalverse on WhatsApp"
+                aria-label="WhatsApp"
+              >
+                <MessageCircle className="w-4 h-4" />
+              </a>
+            </div>
+
+            <p className="text-[10px] text-[#D4AF37] text-center font-mono font-bold uppercase tracking-wider">
+              DIGITAL GROWTH PARTNER FOR HEALTHCARE
             </p>
           </div>
 

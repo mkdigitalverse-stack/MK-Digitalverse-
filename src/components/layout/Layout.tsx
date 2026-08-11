@@ -2,6 +2,7 @@ import React from 'react';
 import { IndustryType } from '../../types';
 import { Header } from './Header';
 import { Footer } from './Footer';
+import { FloatingWhatsApp } from '../ui/FloatingWhatsApp';
 
 interface LayoutProps {
   children: React.ReactNode;
@@ -17,7 +18,7 @@ export const Layout: React.FC<LayoutProps> = ({
   onOpenAuditModal
 }) => {
   return (
-    <div className="min-h-screen bg-[#050505] text-zinc-100 font-sans selection:bg-amber-400 selection:text-black">
+    <div className="min-h-screen bg-[#FDFBF7] text-[#0A192F] font-sans selection:bg-[#C5A059] selection:text-white">
       <Header
         activeIndustry={activeIndustry}
         onSelectIndustry={onSelectIndustry}
@@ -30,6 +31,7 @@ export const Layout: React.FC<LayoutProps> = ({
         onSelectIndustry={onSelectIndustry}
         onOpenAuditModal={onOpenAuditModal}
       />
+      <FloatingWhatsApp />
     </div>
   );
 };

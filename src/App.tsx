@@ -3,8 +3,10 @@ import { IndustryType } from './types';
 import { SeoStructuredData } from './components/ui/SeoStructuredData';
 import { Layout } from './components/layout/Layout';
 import { HomePage } from './features/home/HomePage';
+import { AboutPage } from './features/about/AboutPage';
 import { GrowthAuditModal } from './components/ui/GrowthAuditModal';
 import { DesignSystemPage } from './features/design-system/DesignSystemPage';
+import { NotFoundPage } from './components/ui/NotFoundPage';
 import { useRouter } from './routes/router';
 import { analytics } from './services/analytics';
 
@@ -14,7 +16,14 @@ export default function App() {
   const { currentRoute, navigateTo } = useRouter();
 
   useEffect(() => {
-    analytics.trackPageView(currentRoute === 'design-system' ? 'Design System (DS-01)' : 'Home');
+    const pageTitle = currentRoute === 'design-system' 
+      ? 'Design System (DS-01)' 
+      : currentRoute === 'about'
+      ? 'About MK Digitalverse'
+      : currentRoute === '404' 
+      ? '404 Not Found' 
+      : 'Home';
+    analytics.trackPageView(pageTitle);
   }, [currentRoute]);
 
   const handleSelectIndustry = (industry: IndustryType) => {
@@ -23,6 +32,7 @@ export default function App() {
   };
 
   const handleOpenAuditModal = () => {
+    analytics.trackDiscoveryCallBooking('App Global');
     analytics.trackCTAClick('Open Audit Modal', 'App Global');
     setAuditModalOpen(true);
   };
@@ -30,6 +40,23 @@ export default function App() {
   const handleCloseAuditModal = () => {
     setAuditModalOpen(false);
   };
+
+  if (currentRoute === '404') {
+    return (
+      <>
+        <SeoStructuredData />
+        <NotFoundPage 
+          onReturnHome={() => navigateTo('home')} 
+          onOpenAuditModal={handleOpenAuditModal} 
+        />
+        <GrowthAuditModal
+          isOpen={auditModalOpen}
+          onClose={handleCloseAuditModal}
+          initialIndustry={activeIndustry}
+        />
+      </>
+    );
+  }
 
   if (currentRoute === 'design-system') {
     return (
@@ -51,24 +78,19 @@ export default function App() {
         onSelectIndustry={handleSelectIndustry}
         onOpenAuditModal={handleOpenAuditModal}
       >
-        <HomePage
-          activeIndustry={activeIndustry}
-          onSelectIndustry={handleSelectIndustry}
-          onOpenAuditModal={handleOpenAuditModal}
-        />
+        {currentRoute === 'about' ? (
+          <AboutPage 
+            onOpenAuditModal={handleOpenAuditModal} 
+            onNavigateToSolutions={() => navigateTo('home', 'capabilities')}
+          />
+        ) : (
+          <HomePage
+            activeIndustry={activeIndustry}
+            onSelectIndustry={handleSelectIndustry}
+            onOpenAuditModal={handleOpenAuditModal}
+          />
+        )}
       </Layout>
-
-      {/* Design System Floating Quick Access Pill */}
-      <div className="fixed bottom-4 right-4 z-40">
-        <button
-          onClick={() => navigateTo('design-system')}
-          className="px-3.5 py-2 rounded-full bg-zinc-900/90 hover:bg-zinc-800 text-amber-400 border border-amber-400/30 text-[11px] font-mono font-bold uppercase tracking-wider backdrop-blur-md shadow-2xl transition-all hover:scale-105 cursor-pointer flex items-center gap-2"
-          title="Open Design System (DS-01) Documentation"
-        >
-          <span className="w-2 h-2 rounded-full bg-amber-400 animate-pulse" />
-          <span>DS-01 Design System</span>
-        </button>
-      </div>
 
       {/* Confidential Growth Audit Modal */}
       <GrowthAuditModal

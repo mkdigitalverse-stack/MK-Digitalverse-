@@ -1,0 +1,8 @@
+# www.robotstxt.org/
+# MK Digitalverse Production Robots Directive
+
+User-agent: *
+Allow: /
+
+# Sitemap
+Sitemap: https://mkdigitalverse.com/sitemap.xml

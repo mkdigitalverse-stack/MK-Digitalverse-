@@ -5,6 +5,7 @@
 
 import { firebaseService, GrowthAuditRecord } from './firebase';
 import { analytics } from './analytics';
+import { getAttributionData } from '../lib/utm';
 
 export interface SubmitAuditPayload {
   fullName: string;
@@ -24,6 +25,8 @@ export async function submitGrowthAudit(payload: SubmitAuditPayload): Promise<{
     throw new Error('Please provide a valid work or practice email address.');
   }
 
+  const attribution = getAttributionData();
+
   const record: GrowthAuditRecord = {
     fullName: payload.fullName,
     email: payload.email,
@@ -31,15 +34,18 @@ export async function submitGrowthAudit(payload: SubmitAuditPayload): Promise<{
     organizationName: payload.organizationName || '',
     industry: payload.industry,
     primaryChallenge: payload.primaryChallenge || '',
-    createdAt: new Date().toISOString()
+    createdAt: new Date().toISOString(),
+    utm_source: attribution.utm_source,
+    utm_medium: attribution.utm_medium,
+    utm_campaign: attribution.utm_campaign,
+    landingPage: attribution.landingPage,
+    referrer: attribution.referrer
   };
 
-  // 1. Dispatch analytics event
+  // 1. Dispatch privacy-compliant analytics event
   analytics.trackAuditRequest({
-    name: payload.fullName,
-    email: payload.email,
     industry: payload.industry,
-    phone: payload.phone
+    organizationName: payload.organizationName
   });
 
   // 2. Persist record (Firebase or localStorage fallback)

@@ -12,16 +12,21 @@ export interface GrowthAuditRecord {
   industry: string;
   primaryChallenge?: string;
   createdAt: string;
+  utm_source?: string;
+  utm_medium?: string;
+  utm_campaign?: string;
+  landingPage?: string;
+  referrer?: string;
 }
 
 class FirebaseService {
   private isConfigured: boolean = false;
 
   constructor() {
-    // Checks if Firebase config variables exist in process.env
+    // Checks if Firebase config variables exist in import.meta.env or process.env
     this.isConfigured = Boolean(
-      process.env.VITE_FIREBASE_API_KEY ||
-      process.env.FIREBASE_API_KEY
+      import.meta.env.VITE_FIREBASE_API_KEY ||
+      (typeof process !== 'undefined' && process.env?.VITE_FIREBASE_API_KEY)
     );
   }
 

@@ -1,479 +1,300 @@
-import React from 'react';
-import { IndustryType } from '../../types';
+import React, { useState } from 'react';
 import { 
-  HeartPulse, 
   Building2, 
-  Sparkles, 
+  HeartPulse, 
+  Stethoscope, 
+  Baby, 
+  Smile, 
   Activity, 
-  ShieldCheck, 
-  TrendingUp,
-  CheckCircle2,
-  AlertTriangle,
+  Syringe, 
+  Sparkles, 
+  CheckCircle2, 
   ArrowRight,
-  Target,
-  Award,
-  Workflow,
-  Users,
-  Zap,
-  BarChart3,
-  Layers,
-  ChevronRight
+  ShieldCheck,
+  TrendingUp,
+  Workflow
 } from 'lucide-react';
 
 interface IndustryProps {
-  activeIndustry: IndustryType;
-  onSelectIndustry: (ind: IndustryType) => void;
   onOpenAuditModal: () => void;
 }
 
-export interface IndustryPanelData {
-  id: IndustryType;
+export interface HealthcareSegment {
+  id: string;
+  title: string;
   badge: string;
-  name: string;
-  headline: string;
-  subheadline: string;
-  systemName: string;
-  ipBadge: string;
-  accentColor: 'amber' | 'emerald';
-  storyIcons: {
-    trust: React.ReactNode;
-    target: React.ReactNode;
-    growth: React.ReactNode;
-    system: React.ReactNode;
-  };
-  challenges: {
-    title: string;
-    description: string;
-    impact: string;
-  }[];
-  solutionPillars: {
-    title: string;
-    description: string;
-  }[];
-  businessOutcomes: {
-    title: string;
-    description: string;
-    metric: string;
-  }[];
-  subVerticals: string[];
-  ctaText: string;
+  icon: any;
+  image: string;
+  altText: string;
+  description: string;
+  growthFocus: string[];
+  outcomeMetric: string;
 }
 
-const INDUSTRY_PANELS: IndustryPanelData[] = [
+const HEALTHCARE_SEGMENTS: HealthcareSegment[] = [
   {
-    id: 'healthcare',
-    badge: 'Healthcare Practice',
-    name: 'Healthcare Organizations',
-    headline: 'Helping Healthcare Organizations Build Sustainable Patient Growth',
-    subheadline: 'We replace fragmented marketing tactics with an integrated patient acquisition and triage system engineered specifically for hospitals, IVF clinics, dental chains, and specialty practices.',
-    systemName: 'Healthcare Growth System™',
-    ipBadge: 'Proprietary Clinical IP',
-    accentColor: 'amber',
-    storyIcons: {
-      trust: <ShieldCheck className="w-4 h-4 text-amber-400" />,
-      target: <Users className="w-4 h-4 text-amber-400" />,
-      growth: <TrendingUp className="w-4 h-4 text-amber-400" />,
-      system: <Workflow className="w-4 h-4 text-amber-400" />
-    },
-    challenges: [
-      {
-        title: 'Low Patient Enquiries',
-        description: 'Generic ad spend generated low-intent clicks without capturing patients searching for specialized care.',
-        impact: 'High Cost-Per-Acquisition & Wasted Budget'
-      },
-      {
-        title: 'Weak Digital Reputation',
-        description: 'Inconsistent clinic branding and lack of structured doctor trust profiles caused patient hesitation.',
-        impact: 'Loss of Patients to Regional Competitors'
-      },
-      {
-        title: 'Poor Website Conversion',
-        description: 'Slow WordPress templates with hidden phone numbers failed to convert mobile searchers into appointments.',
-        impact: '80%+ Mobile Visitor Drop-Off Rate'
-      },
-      {
-        title: 'Manual Enquiry Handling',
-        description: 'Slow front-desk response times during off-hours left incoming patient queries unanswered.',
-        impact: '35% Unanswered After-Hours Leads'
-      }
+    id: 'hospitals',
+    title: 'Hospitals',
+    badge: 'Multi-Specialty & Tertiary Care',
+    icon: Building2,
+    image: 'https://images.unsplash.com/photo-1587351021759-3e566b6af7cc?auto=format&fit=crop&w=800&q=80',
+    altText: 'Modern multi-specialty hospital facility and patient reception',
+    description: 'Unified growth systems for multi-specialty hospital networks. We streamline department-wise patient acquisition, doctor authority positioning, and digital intake routing.',
+    growthFocus: [
+      'Department-specific patient acquisition funnels',
+      'Doctor & specialist authority portals',
+      'Centralized digital intake & 24/7 AI triage'
     ],
-    solutionPillars: [
-      {
-        title: '24/7 AI Triage & Triage Routing',
-        description: 'Instant automated patient qualification and direct WhatsApp appointment routing.'
-      },
-      {
-        title: 'Clinical Trust & Reputation Architecture',
-        description: 'Doctor authority profiles, video showcases, and verified patient case studies.'
-      },
-      {
-        title: 'Sub-Second Next.js Web Engine',
-        description: 'Enterprise mobile booking platform designed for friction-free consultation holds.'
-      },
-      {
-        title: 'Precision Geo-Targeted Search Acquisition',
-        description: 'High-intent search capture targeting active patients searching for specialized treatment.'
-      }
+    outcomeMetric: 'Predictable bed capacity & consultation volume'
+  },
+  {
+    id: 'specialty-clinics',
+    title: 'Specialty Clinics',
+    badge: 'Super-Specialty Practice Groups',
+    icon: Stethoscope,
+    image: 'https://images.unsplash.com/photo-1629909613654-28e377c37b09?auto=format&fit=crop&w=800&q=80',
+    altText: 'Doctor patient consultation in a modern specialty clinic',
+    description: 'High-trust acquisition for Cardiology, Orthopedics, Neurology, Gastro, Oncology, and specialty practices seeking high-value case consultation growth.',
+    growthFocus: [
+      'Procedure-focused search & social campaigns',
+      'Pre-consultation patient trust architecture',
+      'High-converting appointment scheduling engines'
     ],
-    businessOutcomes: [
-      {
-        title: 'More Qualified Patients',
-        description: 'Pre-screened leads matching exact treatment criteria and financial capability.',
-        metric: '3.8x ROI'
-      },
-      {
-        title: 'Better Appointment Conversion',
-        description: 'Frictionless booking UI converts mobile visitors directly into clinic visits.',
-        metric: '+185% Lift'
-      },
-      {
-        title: 'Stronger Clinical Reputation',
-        description: 'Established market authority that commands premium consultation fee confidence.',
-        metric: '2.4x Authority'
-      },
-      {
-        title: 'Sustainable Business Growth',
-        description: 'Predictable patient acquisition model with real-time unit economics tracking.',
-        metric: '100% Scalable'
-      }
+    outcomeMetric: '2.4x higher consultation acceptance rate'
+  },
+  {
+    id: 'ivf-fertility',
+    title: 'IVF & Fertility Institutes',
+    badge: 'Reproductive Medicine & Embryology',
+    icon: Baby,
+    image: 'https://images.unsplash.com/photo-1584515979956-d9f6e5d09982?auto=format&fit=crop&w=800&q=80',
+    altText: 'Warm, compassionate fertility clinic consultation and patient care',
+    description: 'Sensitive, empathetic positioning and high-trust enquiry systems designed specifically for couples seeking IVF, ICSI, and fertility care.',
+    growthFocus: [
+      'Empathetic, trust-first digital storytelling',
+      'Private 24/7 AI enquiry pre-qualification',
+      'Higher consultation conversion from initial enquiry'
     ],
-    subVerticals: [
-      'Multi-Specialty Hospitals',
-      'IVF & Fertility Clinics',
-      'Dental & Cosmetic Chains',
-      'Specialty Surgical Centers'
+    outcomeMetric: '+185% increase in qualified IVF consultations'
+  },
+  {
+    id: 'dental-groups',
+    title: 'Dental Groups',
+    badge: 'Multi-Location Dental Chains',
+    icon: Smile,
+    image: 'https://images.unsplash.com/photo-1606811841689-23dfddce3e95?auto=format&fit=crop&w=800&q=80',
+    altText: 'Modern dental practice room with advanced diagnostic technology',
+    description: 'Scalable acquisition and automated booking infrastructure for implants, aligners, full-mouth rehabilitation, and multi-location dental chains.',
+    growthFocus: [
+      'High-value dental treatment acquisition (Implants & Aligners)',
+      'Automated appointment reminder & review loops',
+      'Multi-location catchment search dominance'
     ],
-    ctaText: 'Explore Healthcare Growth Solutions →'
+    outcomeMetric: '3.5x return on ad spend across treatment lines'
+  },
+  {
+    id: 'diagnostic-networks',
+    title: 'Diagnostic Networks',
+    badge: 'Imaging & Pathology Centers',
+    icon: Activity,
+    image: 'https://images.unsplash.com/photo-1516549655169-df83a0774514?auto=format&fit=crop&w=800&q=80',
+    altText: 'Advanced diagnostic imaging and lab testing equipment',
+    description: 'Volume-driven search campaigns and frictionless online booking systems for MRI, CT, PET, path labs, and preventive health package networks.',
+    growthFocus: [
+      'Geo-targeted local search & Maps dominance',
+      'Instant WhatsApp booking & report access routing',
+      'B2C health check package growth'
+    ],
+    outcomeMetric: 'Sub-60s booking response time'
+  },
+  {
+    id: 'surgical-centers',
+    title: 'Surgical Centers',
+    badge: 'Ambulatory & Day-Care Surgery',
+    icon: HeartPulse,
+    image: 'https://images.unsplash.com/photo-1551076805-e1869033e561?auto=format&fit=crop&w=800&q=80',
+    altText: 'State of the art surgical facility operating suite',
+    description: 'Precision patient acquisition for minimally invasive, laparoscopic, bariatric, and day-care surgical procedures.',
+    growthFocus: [
+      'High-intent surgical intent search capture',
+      'Surgical care pathway transparency & trust badging',
+      'Automated pre-surgery consultation scheduling'
+    ],
+    outcomeMetric: 'Reduced surgical consultation drop-off'
+  },
+  {
+    id: 'cosmetic-aesthetic',
+    title: 'Cosmetic & Aesthetic Clinics',
+    badge: 'Dermatology & Aesthetic Medicine',
+    icon: Sparkles,
+    image: 'https://images.unsplash.com/photo-1570172619644-dfd03ed5d881?auto=format&fit=crop&w=800&q=80',
+    altText: 'Luxury aesthetic dermatology clinic consultation',
+    description: 'Luxury aesthetic positioning, high-converting social acquisition, and authority building for premium dermatology and cosmetic surgery clinics.',
+    growthFocus: [
+      'Premium brand positioning & price objection elimination',
+      'Visual case study & transformation portfolios',
+      'VIP consultation booking and deposit workflows'
+    ],
+    outcomeMetric: 'Command premium consultation fees effortlessly'
   }
 ];
 
-export const IndustrySolutions: React.FC<IndustryProps> = ({
-  activeIndustry,
-  onSelectIndustry,
-  onOpenAuditModal
-}) => {
+export const IndustrySolutions: React.FC<IndustryProps> = ({ onOpenAuditModal }) => {
+  const [selectedSegmentId, setSelectedSegmentId] = useState<string>('hospitals');
+  const selectedSegment = HEALTHCARE_SEGMENTS.find(s => s.id === selectedSegmentId) || HEALTHCARE_SEGMENTS[0];
+
   return (
-    <section id="industries" className="py-20 md:py-28 bg-[#050505] relative border-b border-white/10 overflow-hidden">
+    <section id="healthcare-segments" className="py-20 md:py-28 bg-[#FDFBF7] text-[#0A192F] relative border-b border-[#0A192F]/10 overflow-hidden">
       
-      {/* Background Radial Ambiance */}
-      <div className="absolute top-1/4 right-10 w-[500px] h-[500px] bg-amber-500/5 rounded-full blur-[140px] pointer-events-none" />
-      <div className="absolute bottom-10 left-10 w-[500px] h-[500px] bg-emerald-500/5 rounded-full blur-[140px] pointer-events-none" />
-      <div className="absolute inset-0 bg-[radial-gradient(#ffffff0a_1px,transparent_1px)] [background-size:24px_24px] pointer-events-none opacity-30"></div>
+      {/* Background Grid */}
+      <div className="absolute inset-0 bg-cream-grid pointer-events-none opacity-50" />
 
       <div className="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8 relative z-10">
         
         {/* Section Header */}
-        <div className="text-center max-w-3xl mx-auto mb-16">
-          <div className="inline-flex items-center gap-2 px-3.5 py-1.5 rounded-full bg-white/5 border border-white/10 text-zinc-300 text-xs font-bold uppercase tracking-widest mb-4">
-            <Award className="w-3.5 h-3.5 text-amber-400" />
-            <span>Core Vertical Specialization</span>
+        <div className="text-center max-w-3xl mx-auto mb-16 space-y-4">
+          <div className="inline-flex items-center gap-2 px-3.5 py-1.5 rounded-full bg-[#F5F2EB] border border-[#C5A059]/40 text-[#8B6B23] text-xs font-bold uppercase tracking-widest shadow-xs">
+            <Workflow className="w-3.5 h-3.5 text-[#C5A059]" />
+            <span>Healthcare Segments We Serve</span>
           </div>
-          
-          <h2 className="text-3xl sm:text-4xl lg:text-5xl font-display font-extrabold text-white tracking-tight">
-            We Understand Your Business Challenges
+
+          <h2 className="text-3xl sm:text-4xl lg:text-5xl font-display font-extrabold text-[#0A192F] tracking-tight leading-[1.12]">
+            Custom Growth Systems Tailored for <span className="gold-text-gradient">Your Healthcare Category.</span>
           </h2>
-          
-          <p className="mt-4 text-base sm:text-lg text-zinc-300 leading-relaxed">
-            Generalist agencies sell generic marketing packages. We engineer domain-specific business operating systems tailored specifically to the unit economics, intake bottlenecks, and prestige expectations of your industry.
+
+          <p className="text-base sm:text-lg text-slate-600 leading-relaxed font-normal">
+            Every healthcare category has distinct patient trust dynamics, decision timelines, and consultation friction points. We build tailored growth infrastructure for each segment.
           </p>
         </div>
 
-        {/* Dynamic Data-Driven Solution Panel (Healthcare) */}
-        <div className="space-y-16 mb-20">
-          {INDUSTRY_PANELS.map((panel) => {
-            const isAmber = panel.accentColor === 'amber';
-            const isSelected = activeIndustry === panel.id;
-
+        {/* Category Filter Pills */}
+        <div className="flex items-center justify-start sm:justify-center gap-2.5 overflow-x-auto pb-4 mb-10 no-scrollbar">
+          {HEALTHCARE_SEGMENTS.map((seg) => {
+            const isSelected = seg.id === selectedSegmentId;
+            const IconComp = seg.icon;
             return (
-              <div 
-                key={panel.id}
-                className={`glass-panel rounded-2xl p-6 sm:p-10 border shadow-2xl bg-[#09090b] relative overflow-hidden transition-all duration-300 ${
-                  isSelected 
-                    ? isAmber ? 'border-amber-400/50 ring-1 ring-amber-400/20' : 'border-emerald-400/50 ring-1 ring-emerald-400/20'
-                    : 'border-white/15 hover:border-white/30'
+              <button
+                key={seg.id}
+                onClick={() => setSelectedSegmentId(seg.id)}
+                className={`px-4 py-2.5 rounded-xl text-xs font-bold transition-all shrink-0 flex items-center gap-2 cursor-pointer border ${
+                  isSelected
+                    ? 'bg-gradient-to-br from-[#16437E] via-[#123668] to-[#0A2246] text-white border-2 border-[#D4AF37] shadow-lg'
+                    : 'bg-[#0B172A] text-slate-300 border-white/10 hover:border-[#C5A059]/40 hover:text-white'
                 }`}
               >
-                {/* Panel Top Badge Bar */}
-                <div className="flex flex-wrap items-center justify-between pb-6 mb-8 border-b border-white/10 gap-4">
-                  <div className="flex items-center gap-3">
-                    <span className={`px-3 py-1 rounded-full text-xs font-bold uppercase tracking-wider border ${
-                      isAmber 
-                        ? 'bg-amber-400/10 text-amber-300 border-amber-400/30' 
-                        : 'bg-emerald-400/10 text-emerald-300 border-emerald-400/30'
-                    }`}>
-                      {panel.badge}
-                    </span>
-                    <span className="text-xs font-mono font-semibold text-zinc-400 bg-zinc-900 px-2.5 py-1 rounded-md border border-white/5">
-                      {panel.ipBadge}
-                    </span>
-                  </div>
-
-                  <div className="flex items-center gap-2 text-xs font-mono text-zinc-400">
-                    <span>Proprietary System:</span>
-                    <span className={`font-bold ${isAmber ? 'text-amber-400' : 'text-emerald-400'}`}>
-                      {panel.systemName}
-                    </span>
-                  </div>
-                </div>
-
-                {/* Panel Title & Story Arc Banner */}
-                <div className="mb-10">
-                  <h3 className="text-2xl sm:text-3xl lg:text-4xl font-display font-extrabold text-white tracking-tight">
-                    {panel.headline}
-                  </h3>
-                  <p className="mt-3 text-sm sm:text-base text-zinc-300 leading-relaxed max-w-4xl">
-                    {panel.subheadline}
-                  </p>
-
-                  {/* Story Arc Visual Roadmap Header */}
-                  <div className="mt-8 p-4 rounded-xl bg-zinc-950 border border-white/10 hidden md:flex items-center justify-between">
-                    <div className="flex items-center gap-2.5 text-xs font-bold text-red-400 uppercase tracking-wider">
-                      <AlertTriangle className="w-4 h-4 text-red-400" />
-                      <span>1. Business Challenges</span>
-                    </div>
-
-                    <ChevronRight className="w-4 h-4 text-zinc-600" />
-
-                    <div className={`flex items-center gap-2.5 text-xs font-bold uppercase tracking-wider ${
-                      isAmber ? 'text-amber-300' : 'text-emerald-300'
-                    }`}>
-                      <Workflow className={`w-4 h-4 ${isAmber ? 'text-amber-400' : 'text-emerald-400'}`} />
-                      <span>2. {panel.systemName}</span>
-                    </div>
-
-                    <ChevronRight className="w-4 h-4 text-zinc-600" />
-
-                    <div className="flex items-center gap-2.5 text-xs font-bold text-emerald-400 uppercase tracking-wider">
-                      <TrendingUp className="w-4 h-4 text-emerald-400" />
-                      <span>3. Measurable Outcomes</span>
-                    </div>
-                  </div>
-                </div>
-
-                {/* 3-Column Storytelling Grid: Problems -> Solution -> Outcomes */}
-                <div className="grid grid-cols-1 lg:grid-cols-12 gap-8 items-stretch mb-10">
-                  
-                  {/* Column 1: Business Problems & Friction */}
-                  <div className="lg:col-span-4 p-6 rounded-xl bg-zinc-950/90 border border-red-500/20 flex flex-col justify-between">
-                    <div>
-                      <div className="flex items-center justify-between pb-3 mb-4 border-b border-red-500/20 text-xs font-bold uppercase tracking-wider text-red-400">
-                        <span className="flex items-center gap-2">
-                          <AlertTriangle className="w-4 h-4" />
-                          <span>Business Challenges</span>
-                        </span>
-                        <span className="text-[10px] text-zinc-500 font-mono">01 Input</span>
-                      </div>
-
-                      <div className="space-y-3.5">
-                        {panel.challenges.map((chal, idx) => (
-                          <div key={idx} className="p-3 rounded-lg bg-zinc-900/70 border border-white/5 space-y-1">
-                            <div className="text-xs font-bold text-white flex items-center justify-between">
-                              <span className="flex items-center gap-1.5">
-                                <span className="w-1.5 h-1.5 rounded-full bg-red-400 shrink-0"></span>
-                                <span>{chal.title}</span>
-                              </span>
-                            </div>
-                            <p className="text-[11px] text-zinc-400 leading-relaxed">
-                              {chal.description}
-                            </p>
-                            <div className="text-[10px] font-semibold text-red-300/80 pt-0.5">
-                              ↳ {chal.impact}
-                            </div>
-                          </div>
-                        ))}
-                      </div>
-                    </div>
-
-                    <div className="mt-6 pt-3 border-t border-white/5 text-[10px] text-zinc-500 font-mono uppercase text-center">
-                      Identified in 85%+ of Initial Diagnostics
-                    </div>
-                  </div>
-
-                  {/* Column 2: Proprietary Solution Framework */}
-                  <div className="lg:col-span-4 p-6 rounded-xl bg-zinc-900/90 border border-white/10 flex flex-col justify-between">
-                    <div>
-                      <div className="flex items-center justify-between pb-3 mb-4 border-b border-white/10 text-xs font-bold uppercase tracking-wider text-white">
-                        <span className="flex items-center gap-2">
-                          <Workflow className={`w-4 h-4 ${isAmber ? 'text-amber-400' : 'text-emerald-400'}`} />
-                          <span>The Operating Solution</span>
-                        </span>
-                        <span className={`text-[10px] font-mono px-2 py-0.5 rounded border ${
-                          isAmber ? 'bg-amber-950 text-amber-300 border-amber-800/40' : 'bg-emerald-950 text-emerald-300 border-emerald-800/40'
-                        }`}>
-                          02 Process
-                        </span>
-                      </div>
-
-                      <div className="space-y-3">
-                        {panel.solutionPillars.map((pillar, idx) => (
-                          <div key={idx} className="p-3 rounded-lg bg-zinc-950 border border-white/5 flex items-start gap-3">
-                            <div className={`p-1.5 rounded shrink-0 mt-0.5 ${
-                              isAmber ? 'bg-amber-400/20 text-amber-400' : 'bg-emerald-400/20 text-emerald-400'
-                            }`}>
-                              <CheckCircle2 className="w-3.5 h-3.5" />
-                            </div>
-                            <div>
-                              <div className="text-xs font-bold text-white">{pillar.title}</div>
-                              <p className="text-[11px] text-zinc-400 leading-relaxed mt-0.5">{pillar.description}</p>
-                            </div>
-                          </div>
-                        ))}
-                      </div>
-                    </div>
-
-                    <div className="mt-6 pt-3 border-t border-white/10 flex items-center justify-between text-[11px] text-zinc-400">
-                      <span>Deployment Timeline:</span>
-                      <span className="font-bold text-white">14-21 Business Days</span>
-                    </div>
-                  </div>
-
-                  {/* Column 3: Measurable Business Outcomes */}
-                  <div className="lg:col-span-4 p-6 rounded-xl bg-zinc-950/90 border border-emerald-500/20 flex flex-col justify-between">
-                    <div>
-                      <div className="flex items-center justify-between pb-3 mb-4 border-b border-emerald-500/20 text-xs font-bold uppercase tracking-wider text-emerald-400">
-                        <span className="flex items-center gap-2">
-                          <TrendingUp className="w-4 h-4" />
-                          <span>Business Outcomes</span>
-                        </span>
-                        <span className="text-[10px] text-zinc-500 font-mono">03 Result</span>
-                      </div>
-
-                      <div className="space-y-3">
-                        {panel.businessOutcomes.map((outcome, idx) => (
-                          <div key={idx} className="p-3 rounded-lg bg-zinc-900/70 border border-white/5 flex items-start justify-between gap-2">
-                            <div>
-                              <div className="text-xs font-bold text-white">{outcome.title}</div>
-                              <p className="text-[11px] text-zinc-400 leading-relaxed mt-0.5">{outcome.description}</p>
-                            </div>
-                            <span className={`px-2 py-1 rounded text-[10px] font-bold font-mono shrink-0 ${
-                              isAmber ? 'bg-amber-400/10 text-amber-300 border border-amber-400/20' : 'bg-emerald-400/10 text-emerald-300 border border-emerald-400/20'
-                            }`}>
-                              {outcome.metric}
-                            </span>
-                          </div>
-                        ))}
-                      </div>
-                    </div>
-
-                    <div className="mt-6 pt-3 border-t border-white/5 text-[10px] text-emerald-400 font-mono uppercase text-center font-bold">
-                      Verified Across Active Client Audits
-                    </div>
-                  </div>
-
-                </div>
-
-                {/* Sub-Verticals & Bottom Panel Action CTA */}
-                <div className="pt-6 border-t border-white/10 flex flex-col sm:flex-row items-center justify-between gap-6">
-                  
-                  {/* Segments Pill List */}
-                  <div className="flex flex-wrap items-center gap-2">
-                    <span className="text-[11px] font-mono text-zinc-400 uppercase tracking-wider">Sub-Verticals:</span>
-                    {panel.subVerticals.map((vert, idx) => (
-                      <span key={idx} className="px-2.5 py-1 rounded-md bg-zinc-900 text-[11px] font-medium text-zinc-300 border border-white/5">
-                        {vert}
-                      </span>
-                    ))}
-                  </div>
-
-                  {/* Panel CTA Button */}
-                  <button
-                    onClick={() => {
-                      onSelectIndustry(panel.id);
-                      onOpenAuditModal();
-                    }}
-                    className={`px-6 py-3.5 rounded-xl font-bold text-xs uppercase tracking-wider transition-all flex items-center justify-center gap-2 shrink-0 shadow-lg ${
-                      isAmber
-                        ? 'bg-amber-400 text-black hover:bg-amber-300'
-                        : 'bg-emerald-400 text-black hover:bg-emerald-300'
-                    }`}
-                  >
-                    <span>{panel.ctaText}</span>
-                    <ArrowRight className="w-4 h-4" />
-                  </button>
-
-                </div>
-
-              </div>
+                <IconComp className={`w-3.5 h-3.5 ${isSelected ? 'text-[#D4AF37]' : 'text-[#C5A059]'}`} />
+                <span>{seg.title}</span>
+              </button>
             );
           })}
         </div>
 
-        {/* "Why We Specialize" Strategic Statement */}
-        <div className="p-8 sm:p-12 rounded-2xl bg-zinc-950 border border-white/10 relative overflow-hidden mb-16">
-          <div className="max-w-4xl mx-auto text-center space-y-6">
-            
-            <div className="inline-flex items-center gap-2 px-3.5 py-1.5 rounded-full bg-white/5 border border-white/10 text-zinc-300 text-xs font-bold uppercase tracking-widest">
-              <ShieldCheck className="w-3.5 h-3.5 text-emerald-400" />
-              <span>Specialization Manifesto</span>
-            </div>
-
-            <h3 className="text-2xl sm:text-3xl lg:text-4xl font-display font-extrabold text-white tracking-tight">
-              Why We Specialize
-            </h3>
-
-            <p className="text-sm sm:text-base text-zinc-200 leading-relaxed font-normal max-w-2xl mx-auto">
-              "We intentionally focus 100% on healthcare organizations because deep clinical domain expertise leads to better strategy, higher patient trust, and predictable business growth."
-            </p>
-
-            <div className="grid grid-cols-1 md:grid-cols-3 gap-6 pt-4 text-left">
-              <div className="p-5 rounded-xl bg-zinc-900/80 border border-white/5 space-y-2">
-                <div className="p-2 rounded-lg bg-amber-400/10 text-amber-400 w-fit">
-                  <BarChart3 className="w-5 h-5" />
-                </div>
-                <h4 className="text-xs font-bold uppercase tracking-wider text-white">Clinical Strategy</h4>
-                <p className="text-xs text-zinc-400 leading-relaxed">
-                  We intimately understand patient LTV, insurance workflows, clinical specialty capacity, and doctor authority architecture.
-                </p>
+        {/* Active Segment Feature Panel */}
+        <div className="grid grid-cols-1 lg:grid-cols-12 gap-8 items-center p-6 sm:p-8 rounded-3xl bg-[#0B172A] border border-[#C5A059]/40 shadow-2xl mb-14">
+          
+          {/* Left Column: Image & Badge */}
+          <div className="lg:col-span-5 relative">
+            <div className="relative rounded-2xl overflow-hidden border border-[#C5A059]/40 shadow-xl bg-[#050B18] group">
+              <img
+                src={selectedSegment.image}
+                alt={selectedSegment.altText}
+                className="w-full h-[300px] sm:h-[360px] object-cover object-center group-hover:scale-105 transition-transform duration-700 brightness-90"
+              />
+              <div className="absolute inset-0 bg-gradient-to-t from-[#050B18] via-transparent to-transparent opacity-90" />
+              
+              <div className="absolute top-4 left-4 px-3 py-1 rounded-full bg-[#050B18]/90 border border-[#C5A059]/40 text-[#D4AF37] text-[10px] font-mono font-bold uppercase tracking-wider backdrop-blur-md">
+                {selectedSegment.badge}
               </div>
 
-              <div className="p-5 rounded-xl bg-zinc-900/80 border border-white/5 space-y-2">
-                <div className="p-2 rounded-lg bg-emerald-400/10 text-emerald-400 w-fit">
-                  <Activity className="w-5 h-5" />
-                </div>
-                <h4 className="text-xs font-bold uppercase tracking-wider text-white">Healthcare AI Insights</h4>
-                <p className="text-xs text-zinc-400 leading-relaxed">
-                  Our conversational AI models are pre-trained on clinical triage protocols and front-desk appointment workflows out of the box.
-                </p>
-              </div>
-
-              <div className="p-5 rounded-xl bg-zinc-900/80 border border-white/5 space-y-2">
-                <div className="p-2 rounded-lg bg-cyan-400/10 text-cyan-400 w-fit">
-                  <TrendingUp className="w-5 h-5" />
-                </div>
-                <h4 className="text-xs font-bold uppercase tracking-wider text-white">Measurable Outcomes</h4>
-                <p className="text-xs text-zinc-400 leading-relaxed">
-                  We deploy pre-tested Next.js web engines and geo-fenced acquisition campaigns that eliminate ad waste and drive patient visits.
-                </p>
+              <div className="absolute bottom-4 left-4 right-4 p-3 rounded-xl bg-[#050B18]/90 border border-white/10 backdrop-blur-md flex items-center justify-between text-xs text-white">
+                <span className="font-mono text-slate-300">Target Outcome:</span>
+                <span className="font-bold text-[#D4AF37]">{selectedSegment.outcomeMetric}</span>
               </div>
             </div>
-
           </div>
+
+          {/* Right Column: Narrative & Pillars */}
+          <div className="lg:col-span-7 space-y-6 text-left">
+            <div>
+              <span className="text-xs font-mono font-bold uppercase tracking-widest text-[#D4AF37]">
+                Segment Strategy — {selectedSegment.title}
+              </span>
+              <h3 className="text-2xl sm:text-3xl font-bold text-white mt-1 font-display">
+                {selectedSegment.title} Growth Engine
+              </h3>
+              <p className="text-sm text-slate-200 leading-relaxed mt-3 font-normal">
+                {selectedSegment.description}
+              </p>
+            </div>
+
+            {/* Growth Focus Highlights */}
+            <div className="space-y-3 pt-2">
+              <h4 className="text-xs font-bold uppercase tracking-wider text-slate-400">
+                Core System Interventions:
+              </h4>
+              <div className="space-y-2.5">
+                {selectedSegment.growthFocus.map((focus, idx) => (
+                  <div key={idx} className="flex items-start gap-3 p-3 rounded-xl bg-[#050B18] border border-white/10">
+                    <CheckCircle2 className="w-4 h-4 text-[#D4AF37] shrink-0 mt-0.5" />
+                    <span className="text-xs font-medium text-slate-200">{focus}</span>
+                  </div>
+                ))}
+              </div>
+            </div>
+
+            {/* CTA button */}
+            <div className="pt-2">
+              <button
+                onClick={onOpenAuditModal}
+                className="btn-gold-primary px-6 py-3.5 rounded-xl text-xs uppercase tracking-wider transition-all flex items-center gap-2 cursor-pointer shadow-md"
+              >
+                <span>Request Growth Plan for {selectedSegment.title}</span>
+                <ArrowRight className="w-4 h-4 text-[#0A192F]" />
+              </button>
+            </div>
+          </div>
+
         </div>
 
-        {/* Section Closing CTA */}
-        <div className="text-center space-y-4">
-          <p className="text-xs font-mono font-bold uppercase tracking-widest text-zinc-400">
-            Ready to evaluate your domain growth system?
-          </p>
+        {/* Grid of All 7 Segments */}
+        <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-3 gap-6">
+          {HEALTHCARE_SEGMENTS.map((seg) => {
+            const IconComp = seg.icon;
+            return (
+              <div
+                key={seg.id}
+                onClick={() => setSelectedSegmentId(seg.id)}
+                className={`p-5 rounded-2xl bg-[#0B172A] border transition-all cursor-pointer space-y-3 group ${
+                  seg.id === selectedSegmentId
+                    ? 'border-[#D4AF37] shadow-xl ring-1 ring-[#D4AF37]'
+                    : 'border-white/10 hover:border-[#C5A059]/50 hover:shadow-lg'
+                }`}
+              >
+                <div className="flex items-center justify-between">
+                  <div className="w-9 h-9 rounded-xl bg-[#050B18] border border-[#C5A059]/40 text-[#D4AF37] flex items-center justify-center shrink-0">
+                    <IconComp className="w-4 h-4" />
+                  </div>
+                  <span className="text-[10px] font-mono font-bold text-slate-400 uppercase tracking-wider">
+                    {seg.badge.split(' ')[0]}
+                  </span>
+                </div>
 
-          <div className="flex flex-col sm:flex-row items-center justify-center gap-4">
-            <button
-              onClick={onOpenAuditModal}
-              className="px-8 py-4 rounded-xl bg-white text-black font-bold text-xs uppercase tracking-wider hover:bg-zinc-200 active:scale-95 transition-all shadow-2xl flex items-center gap-2"
-            >
-              <Sparkles className="w-4 h-4 text-amber-500" />
-              <span>Book Discovery Call</span>
-              <ArrowRight className="w-4 h-4" />
-            </button>
+                <div>
+                  <h4 className="text-base font-bold text-white group-hover:text-[#D4AF37] transition-colors font-display">
+                    {seg.title}
+                  </h4>
+                  <p className="text-xs text-slate-300 line-clamp-2 mt-1 leading-relaxed">
+                    {seg.description}
+                  </p>
+                </div>
 
-            <button
-              onClick={onOpenAuditModal}
-              className="px-8 py-4 rounded-xl bg-zinc-900 text-zinc-100 font-semibold text-xs uppercase tracking-wider hover:bg-zinc-800 transition-all border border-white/10 flex items-center gap-2"
-            >
-              <ShieldCheck className="w-4 h-4 text-emerald-400" />
-              <span>Request a Growth Audit™</span>
-            </button>
-          </div>
+                <div className="pt-2 border-t border-white/10 flex items-center justify-between text-[11px]">
+                  <span className="text-slate-400 font-medium group-hover:text-slate-200">View Growth Model</span>
+                  <ArrowRight className="w-3.5 h-3.5 text-[#D4AF37] group-hover:translate-x-1 transition-transform" />
+                </div>
+              </div>
+            );
+          })}
         </div>
 
       </div>

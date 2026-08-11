@@ -3,14 +3,27 @@
 @layer base {
   :root {
     --font-sans: 'Plus Jakarta Sans', system-ui, -apple-system, sans-serif;
-    --font-display: 'Outfit', 'Plus Jakarta Sans', sans-serif;
+    --font-display: 'Plus Jakarta Sans', 'Outfit', sans-serif;
     --font-serif: 'Playfair Display', Georgia, serif;
+
+    /* Official MK Digitalverse Light Premium Palette */
+    --color-warm-ivory: #FDFBF7;
+    --color-soft-cream: #F9F6F0;
+    --color-light-beige: #F5F2EB;
+    --color-deep-navy: #0A192F;
+    --color-dark-charcoal: #1E293B;
+    --color-champagne-gold: #C5A059;
+    --color-metallic-gold: #D4AF37;
+    --color-healthcare-blue: #1877F2;
+    --color-soft-blue-bg: #EEF4FF;
+    --color-primary-text: #0A192F;
+    --color-secondary-text: #475569;
   }
 
   body {
     font-family: var(--font-sans);
-    background-color: #050505;
-    color: #EDEDED;
+    background-color: #050B18;
+    color: #F8FAFC;
     overflow-x: hidden;
   }
 
@@ -19,36 +32,55 @@
   }
 }
 
-/* Custom Grid Background Pattern */
-.bg-grid-pattern {
-  background-size: 40px 40px;
+/* Custom Grid Background Pattern for Dark sections */
+.bg-cream-grid, .bg-navy-grid {
+  background-size: 32px 32px;
   background-image: 
     linear-gradient(to right, rgba(255, 255, 255, 0.03) 1px, transparent 1px),
     linear-gradient(to bottom, rgba(255, 255, 255, 0.03) 1px, transparent 1px);
 }
 
-.bg-dots-pattern {
-  background-image: radial-gradient(rgba(255, 255, 255, 0.06) 1px, transparent 1px);
-  background-size: 24px 24px;
+/* Glassmorphism utility - Dark Surface */
+.glass-panel-cream, .glass-panel-dark {
+  background: rgba(8, 20, 38, 0.75);
+  backdrop-filter: blur(18px);
+  -webkit-backdrop-filter: blur(18px);
+  border: 1px solid rgba(255, 255, 255, 0.10);
 }
 
-/* Glassmorphism utility - Consulting Firm Aesthetic */
-.glass-panel {
-  background: rgba(12, 12, 15, 0.7);
-  backdrop-filter: blur(16px);
-  -webkit-backdrop-filter: blur(16px);
-  border: 1px solid rgba(255, 255, 255, 0.07);
+/* Executive Gold Primary CTA Button */
+.btn-gold-primary {
+  background: linear-gradient(135deg, #D4AF37 0%, #C5A059 100%);
+  color: #0A192F;
+  font-weight: 800;
+  box-shadow: 0 10px 25px -5px rgba(197, 160, 89, 0.4);
+  transition: all 0.25s cubic-bezier(0.4, 0, 0.2, 1);
+  border: 1px solid rgba(255, 255, 255, 0.4);
 }
-
-.glass-panel-hover {
-  transition: all 0.3s cubic-bezier(0.16, 1, 0.3, 1);
-}
-
-.glass-panel-hover:hover {
-  background: rgba(18, 18, 22, 0.85);
-  border-color: rgba(255, 255, 255, 0.15);
+.btn-gold-primary:hover {
+  background: linear-gradient(135deg, #E5C158 0%, #D4AF37 100%);
   transform: translateY(-2px);
-  box-shadow: 0 20px 40px -15px rgba(0, 0, 0, 0.7);
+  box-shadow: 0 14px 30px -5px rgba(197, 160, 89, 0.55);
+}
+
+/* Deep Navy Executive Button */
+.btn-navy-secondary {
+  background-color: #0A192F;
+  color: #FFFFFF;
+  border: 1px solid rgba(197, 160, 89, 0.35);
+  transition: all 0.25s ease;
+}
+.btn-navy-secondary:hover {
+  background-color: #142744;
+  border-color: rgba(197, 160, 89, 0.6);
+  transform: translateY(-2px);
+}
+
+/* Gold Gradient Text Utility */
+.gold-text-gradient {
+  background: linear-gradient(135deg, #0A192F 0%, #1E3A8A 40%, #C5A059 100%);
+  -webkit-background-clip: text;
+  -webkit-text-fill-color: transparent;
 }
 
 /* Scrollbar polish */
@@ -56,12 +88,14 @@
   width: 8px;
 }
 ::-webkit-scrollbar-track {
-  background: #050505;
+  background: #FDFBF7;
 }
 ::-webkit-scrollbar-thumb {
-  background: #18181b;
+  background: #C5A059;
   border-radius: 4px;
 }
 ::-webkit-scrollbar-thumb:hover {
-  background: #27272a;
+  background: #0A192F;
 }
+
+

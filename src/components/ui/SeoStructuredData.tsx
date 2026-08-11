@@ -22,8 +22,10 @@ export const SeoStructuredData: React.FC = () => {
       'addressCountry': 'IN'
     },
     'sameAs': [
-      'https://linkedin.com/company/mkdigitalverse',
-      'https://instagram.com/mkdigitalverse'
+      'https://www.facebook.com/share/1d4V9P5x7B/',
+      'https://www.instagram.com/mk_digitalverse?igsh=bXc3MWFycGI1ejVr',
+      'https://www.linkedin.com/company/mk-digitalverse/',
+      'https://www.youtube.com/@mkdigitalverse'
     ]
   };
 
