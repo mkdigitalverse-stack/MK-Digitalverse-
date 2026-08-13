@@ -1,7 +1,7 @@
 import express from 'express';
 import path from 'path';
 import { createServer as createViteServer } from 'vite';
-import { NotificationEngine } from './src/services/serverNotificationEngine.js';
+import { NotificationEngine } from './src/services/serverNotificationEngine';
 
 async function startServer() {
   const app = express();
@@ -118,6 +118,24 @@ Server Recipient: ${process.env.NOTIFICATION_RECIPIENT_EMAIL || 'mkdigitalverse@
   // 5. End-to-End Test Dispatch Trigger
   app.post('/api/notifications/test', async (req, res) => {
     try {
+      // Security check for production mode
+      if (process.env.NODE_ENV === 'production') {
+        const secret = process.env.ADMIN_API_SECRET;
+        if (!secret) {
+          return res.status(503).json({
+            success: false,
+            error: 'ADMIN_API_SECRET is not configured on the production server.'
+          });
+        }
+        const clientSecret = req.headers['x-admin-secret'];
+        if (!clientSecret || clientSecret !== secret) {
+          return res.status(401).json({
+            success: false,
+            error: 'Unauthorized: Invalid or missing x-admin-secret header.'
+          });
+        }
+      }
+
       const testLeadId = `test_lead_${Date.now()}`;
 
       // 1. Dispatch Test Lead Intake Alert
@@ -152,32 +170,25 @@ Server Recipient: ${process.env.NOTIFICATION_RECIPIENT_EMAIL || 'mkdigitalverse@
 
 
   // ----------------------------------------------------
-  // VITE & STATIC FILE MIDDLEWARE
+  // VITE & STATIC FILE MIDLLEWARE
   // ----------------------------------------------------
 
-  const isProduction = process.env.NODE_ENV === 'production';
-
-  if (!isProduction) {
+  if (process.env.NODE_ENV !== 'production') {
     const vite = await createViteServer({
       server: { middlewareMode: true },
       appType: 'spa'
     });
-
     app.use(vite.middlewares);
   } else {
     const distPath = path.join(process.cwd(), 'dist');
-
     app.use(express.static(distPath));
-
     app.get('*', (req, res) => {
       res.sendFile(path.join(distPath, 'index.html'));
     });
   }
 
   app.listen(PORT, '0.0.0.0', () => {
-    console.log(
-      `[MK Digitalverse Server Engine] Running on http://0.0.0.0:${PORT}`
-    );
+    console.log(`[MK Digitalverse Server Engine] Running on http://0.0.0.0:${PORT}`);
   });
 }
 
