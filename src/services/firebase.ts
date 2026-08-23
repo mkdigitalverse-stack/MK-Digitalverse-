@@ -1,6 +1,7 @@
 import { initializeApp, getApps, FirebaseApp } from 'firebase/app';
 import { getAuth, Auth } from 'firebase/auth';
 import { getFirestore, Firestore, collection, doc, setDoc, getDocFromServer } from 'firebase/firestore';
+import defaultFirebaseConfig from '../../firebase-applet-config.json';
 
 export type LeadType = 'growth_audit' | 'discovery_call' | 'contact_enquiry';
 export type LeadStatus = 'new' | 'contacted' | 'qualified' | 'proposal' | 'won' | 'lost';
@@ -71,26 +72,28 @@ class FirebaseManager {
 
   private initLazy() {
     try {
-      // 1. Check for firebase-applet-config.json dynamically or window global if present
-      let config: any = null;
+      const baseConfig = (defaultFirebaseConfig && typeof defaultFirebaseConfig === 'object') ? defaultFirebaseConfig as Record<string, any> : {};
+      const windowConfig = (typeof window !== 'undefined' && (window as any).__FIREBASE_CONFIG__) ? (window as any).__FIREBASE_CONFIG__ : {};
 
-      if (typeof window !== 'undefined' && (window as any).__FIREBASE_CONFIG__) {
-        config = (window as any).__FIREBASE_CONFIG__;
-      } else if (
-        import.meta.env.VITE_FIREBASE_API_KEY &&
-        import.meta.env.VITE_FIREBASE_PROJECT_ID
-      ) {
-        config = {
-          apiKey: import.meta.env.VITE_FIREBASE_API_KEY,
-          authDomain: import.meta.env.VITE_FIREBASE_AUTH_DOMAIN || `${import.meta.env.VITE_FIREBASE_PROJECT_ID}.firebaseapp.com`,
-          projectId: import.meta.env.VITE_FIREBASE_PROJECT_ID,
-          storageBucket: import.meta.env.VITE_FIREBASE_STORAGE_BUCKET || `${import.meta.env.VITE_FIREBASE_PROJECT_ID}.appspot.com`,
-          messagingSenderId: import.meta.env.VITE_FIREBASE_MESSAGING_SENDER_ID || '',
-          appId: import.meta.env.VITE_FIREBASE_APP_ID || ''
-        };
-      }
+      const apiKey = import.meta.env.VITE_FIREBASE_API_KEY || windowConfig.apiKey || baseConfig.apiKey;
+      const projectId = import.meta.env.VITE_FIREBASE_PROJECT_ID || windowConfig.projectId || baseConfig.projectId || 'lucky-rarity-nx6pd';
+      const authDomain = import.meta.env.VITE_FIREBASE_AUTH_DOMAIN || windowConfig.authDomain || baseConfig.authDomain || `${projectId}.firebaseapp.com`;
+      const storageBucket = import.meta.env.VITE_FIREBASE_STORAGE_BUCKET || windowConfig.storageBucket || baseConfig.storageBucket || `${projectId}.firebasestorage.app`;
+      const messagingSenderId = import.meta.env.VITE_FIREBASE_MESSAGING_SENDER_ID || windowConfig.messagingSenderId || baseConfig.messagingSenderId || '1057468511510';
+      const appId = import.meta.env.VITE_FIREBASE_APP_ID || windowConfig.appId || baseConfig.appId || '1:1057468511510:web:d8af4f981113d0155e8c37';
+      const firestoreDatabaseId = import.meta.env.VITE_FIREBASE_DATABASE_ID || windowConfig.firestoreDatabaseId || baseConfig.firestoreDatabaseId || 'ai-studio-mkdigitalverse-9b462cc3-c171-4ef9-aed1-5975fbff2307';
 
-      if (config && config.apiKey) {
+      const config = {
+        apiKey,
+        authDomain,
+        projectId,
+        storageBucket,
+        messagingSenderId,
+        appId,
+        firestoreDatabaseId
+      };
+
+      if (config.apiKey && config.projectId) {
         if (!getApps().length) {
           this.app = initializeApp(config);
         } else {
@@ -99,11 +102,15 @@ class FirebaseManager {
         this.db = getFirestore(this.app, config.firestoreDatabaseId || undefined);
         this.auth = getAuth(this.app);
         this.isInitialized = true;
+        this.initError = null;
         this.testConnection();
+      } else {
+        this.initError = 'Firebase configuration is missing. Please ensure VITE_FIREBASE_API_KEY and VITE_FIREBASE_PROJECT_ID are set, or firebase-applet-config.json is present.';
+        console.warn('[FirebaseManager]', this.initError);
       }
     } catch (err: any) {
       this.initError = err?.message || String(err);
-      console.warn('[FirebaseManager] Optional cloud initialization note:', this.initError);
+      console.warn('[FirebaseManager] Firebase initialization note:', this.initError);
     }
   }
 
@@ -120,6 +127,14 @@ class FirebaseManager {
 
   public isReady(): boolean {
     return this.isInitialized && this.db !== null;
+  }
+
+  public getInitError(): string | null {
+    return this.initError;
+  }
+
+  public isAuthConfigured(): boolean {
+    return this.auth !== null;
   }
 
   public getDb(): Firestore | null {

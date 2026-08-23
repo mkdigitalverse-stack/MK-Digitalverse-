@@ -139,7 +139,10 @@ class AdminLeadsService {
   public async signInWithGoogle(): Promise<User> {
     const auth = firebaseManager.getAuth();
     if (!auth) {
-      throw new Error('Firebase Auth is not initialized');
+      const initErr = firebaseManager.getInitError();
+      throw new Error(
+        initErr || 'Firebase Authentication is not available. Please verify that your Firebase environment variables (VITE_FIREBASE_API_KEY and VITE_FIREBASE_PROJECT_ID) are configured or firebase-applet-config.json exists.'
+      );
     }
     const provider = new GoogleAuthProvider();
     provider.setCustomParameters({ prompt: 'select_account' });
