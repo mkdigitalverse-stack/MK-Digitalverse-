@@ -73,6 +73,7 @@ export const FOOTER_NAVIGATION = {
       { label: 'About MK Digitalverse', href: '#why-mk' },
       { label: 'Insights & Case Studies', href: '#case-studies' },
       { label: 'Executive FAQ', href: '#faq' },
+      { label: 'Admin Portal', href: '#/admin' },
       { label: 'Privacy Policy', href: '#privacy-policy' },
       { label: 'Terms of Engagement', href: '#terms-of-service' }
     ]
@@ -360,6 +361,9 @@ export const Footer: React.FC<FooterProps> = ({ onSelectIndustry, onOpenAuditMod
           <a href="#privacy-policy" className="hover:text-slate-200 transition-colors">Privacy Policy</a>
           <a href="#terms-of-service" className="hover:text-slate-200 transition-colors">Terms of Engagement</a>
           <a href="#accessibility" className="hover:text-slate-200 transition-colors">Accessibility Statement</a>
+          <a href="#/admin" className="hover:text-[#D4AF37] transition-colors flex items-center gap-1 font-mono text-[10px] text-slate-500 hover:text-slate-300">
+            <span>Admin Access</span>
+          </a>
         </div>
       </div>
 

@@ -23,16 +23,28 @@ export function useRouter(): RouteState {
       const hash = window.location.hash;
       const pathname = window.location.pathname;
 
-      if (hash.includes('/admin/leads') || hash === '#admin/leads' || pathname === '/admin/leads' || pathname.startsWith('/admin')) {
+      const cleanHash = hash.toLowerCase();
+      const cleanPath = pathname.toLowerCase();
+
+      const isAdminOrLogin = 
+        cleanHash.includes('/admin') ||
+        cleanHash.includes('/login') ||
+        cleanHash === '#admin' ||
+        cleanHash === '#login' ||
+        cleanHash === '#admin/leads' ||
+        cleanPath.startsWith('/admin') ||
+        cleanPath.startsWith('/login');
+
+      if (isAdminOrLogin) {
         setCurrentRoute('admin-leads');
-      } else if (hash.includes('/design-system') || hash === '#design-system' || pathname === '/design-system') {
+      } else if (cleanHash.includes('/design-system') || cleanHash === '#design-system' || cleanPath === '/design-system') {
         setCurrentRoute('design-system');
-      } else if (hash.includes('/about') || hash === '#about' || pathname === '/about') {
+      } else if (cleanHash.includes('/about') || cleanHash === '#about' || cleanPath === '/about') {
         setCurrentRoute('about');
         window.scrollTo(0, 0);
-      } else if (hash.startsWith('#/') && hash !== '#/' && !hash.startsWith('#/design-system') && !hash.startsWith('#/about') && !hash.startsWith('#/admin')) {
+      } else if (hash.startsWith('#/') && hash !== '#/' && !hash.startsWith('#/design-system') && !hash.startsWith('#/about') && !hash.startsWith('#/admin') && !hash.startsWith('#/login')) {
         setCurrentRoute('404');
-      } else if (pathname !== '/' && pathname !== '' && pathname !== '/index.html' && pathname !== '/design-system' && pathname !== '/about' && !pathname.startsWith('/admin')) {
+      } else if (pathname !== '/' && pathname !== '' && pathname !== '/index.html' && pathname !== '/design-system' && pathname !== '/about' && !cleanPath.startsWith('/admin') && !cleanPath.startsWith('/login')) {
         setCurrentRoute('404');
       } else {
         setCurrentRoute('home');
