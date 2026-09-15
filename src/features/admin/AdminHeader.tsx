@@ -1,9 +1,9 @@
 import React from 'react';
 import { ShieldCheck, LogOut, RefreshCw, Lock, Sparkles } from 'lucide-react';
-import { User } from 'firebase/auth';
+import { AdminAuthUser } from '../../services/adminLeadsService';
 
 interface AdminHeaderProps {
-  user: User | null;
+  user: AdminAuthUser | null;
   onRefresh: () => void;
   onLogout: () => void;
   isRefreshing?: boolean;

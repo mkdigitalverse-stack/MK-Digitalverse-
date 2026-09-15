@@ -5,14 +5,6 @@
  */
 
 import { 
-  signInWithPopup, 
-  GoogleAuthProvider, 
-  signOut as firebaseSignOut, 
-  onAuthStateChanged, 
-  User,
-  Unsubscribe 
-} from 'firebase/auth';
-import { 
   collection, 
   onSnapshot, 
   doc, 
@@ -22,7 +14,9 @@ import {
   orderBy, 
   getDoc 
 } from 'firebase/firestore';
+import { User as SupabaseUser } from '@supabase/supabase-js';
 
+import { supabase, getSupabaseClient } from './supabase';
 import { firebaseManager, OperationType, FirestoreErrorInfo } from './firebase';
 import { 
   CompleteLeadRecord, 
@@ -32,6 +26,14 @@ import {
   OpportunityStage,
   STAGE_PROBABILITIES
 } from './qualification';
+
+export const AUTHORIZED_ADMIN_EMAIL = 'mkdigitalverse@gmail.com';
+
+export type AdminAuthUser = SupabaseUser & {
+  displayName?: string | null;
+};
+
+export type Unsubscribe = () => void;
 
 export interface LeadActivity {
   id?: string;
@@ -76,87 +78,154 @@ class AdminLeadsService {
   }
 
   /**
-   * Evaluates if a given user has authorized administrator status.
+   * Evaluates if an authenticated Supabase user has authorized administrator status
+   * by verifying credentials against public.profiles in the database.
+   *
+   * The user is recognized as an administrator ONLY when:
+   * 1. Authenticated user's email matches the authorized admin email for this project.
+   * 2. The database profile record has role = 'admin'.
+   * 3. The database profile record has active = true.
    */
-  public async checkAdminPermission(user: User | null): Promise<boolean> {
-    if (!user) return false;
+  public async checkAdminPermission(user: SupabaseUser | AdminAuthUser | null): Promise<boolean> {
+    if (!user || !user.email) return false;
 
-    // 1. Primary Owner Bootstrap Check
-    if (user.email === 'mkdigitalverse@gmail.com') {
-      return true;
+    // 1. Project-authorized admin email check
+    const userEmail = user.email.toLowerCase().trim();
+    if (userEmail !== AUTHORIZED_ADMIN_EMAIL.toLowerCase()) {
+      console.warn(`[AdminLeadsService] User ${user.email} is not the authorized project admin.`);
+      return false;
     }
 
-    // 2. Custom Token Claim Check
+    // 2. Database verification against public.profiles table
+    if (!supabase) {
+      console.warn('[AdminLeadsService] Supabase client is not configured; cannot verify public.profiles.');
+      return false;
+    }
+
     try {
-      const tokenResult = await user.getIdTokenResult();
-      if (tokenResult.claims && tokenResult.claims.admin === true) {
-        return true;
-      }
-    } catch (e) {
-      console.warn('[AdminLeadsService] Token claim check note:', e);
-    }
+      // Query profile by user.id in public.profiles
+      const { data: profileById, error: idError } = await supabase
+        .from('profiles')
+        .select('id, email, role, active')
+        .eq('id', user.id)
+        .maybeSingle();
 
-    // 3. Firestore /admins/{uid} Document Check
-    const db = firebaseManager.getDb();
-    if (db) {
-      try {
-        const adminDocRef = doc(db, 'admins', user.uid);
-        const adminSnap = await getDoc(adminDocRef);
-        if (adminSnap.exists()) {
-          return true;
+      if (idError) {
+        console.warn('[AdminLeadsService] Profiles query by ID warning:', idError.message);
+      }
+
+      let profile = profileById;
+
+      // Fallback query by email if profile was keyed by email
+      if (!profile && userEmail) {
+        const { data: profileByEmail, error: emailError } = await supabase
+          .from('profiles')
+          .select('id, email, role, active')
+          .eq('email', userEmail)
+          .maybeSingle();
+
+        if (emailError) {
+          console.warn('[AdminLeadsService] Profiles query by email warning:', emailError.message);
         }
-      } catch (e) {
-        console.warn('[AdminLeadsService] Firestore admin lookup note:', e);
+        profile = profileByEmail;
       }
-    }
 
-    return false;
+      if (!profile) {
+        console.warn('[AdminLeadsService] Profile not found in public.profiles for user ID:', user.id);
+        return false;
+      }
+
+      // 3. Must have role = 'admin' AND active = true in database
+      const hasAdminRole = profile.role === 'admin';
+      const isActive = profile.active === true;
+
+      return Boolean(hasAdminRole && isActive);
+    } catch (e) {
+      console.error('[AdminLeadsService] Profiles verification exception:', e);
+      return false;
+    }
   }
 
   /**
-   * Subscribes to Firebase auth state changes with admin verification.
+   * Subscribes to Supabase auth state changes with database profile verification.
+   * Uses supabase.auth.onAuthStateChange and verifies against public.profiles.
    */
-  public subscribeToAuthState(callback: (user: User | null, isAdmin: boolean) => void): Unsubscribe {
-    const auth = firebaseManager.getAuth();
-    if (!auth) {
+  public subscribeToAuthState(
+    callback: (user: AdminAuthUser | null, isAdmin: boolean) => void
+  ): Unsubscribe {
+    if (!supabase) {
       callback(null, false);
       return () => {};
     }
 
-    return onAuthStateChanged(auth, async (user) => {
-      if (!user) {
-        callback(null, false);
-      } else {
-        const isAdmin = await this.checkAdminPermission(user);
-        callback(user, isAdmin);
-      }
+    const formatAdminUser = (user: SupabaseUser): AdminAuthUser => ({
+      ...user,
+      displayName:
+        user.user_metadata?.full_name ||
+        user.user_metadata?.name ||
+        user.user_metadata?.display_name ||
+        user.email?.split('@')[0] ||
+        'Admin',
     });
+
+    const { data: { subscription } } = supabase.auth.onAuthStateChange(
+      async (_event, session) => {
+        const user = session?.user ?? null;
+        if (!user) {
+          callback(null, false);
+        } else {
+          const adminUser = formatAdminUser(user);
+          const isAdmin = await this.checkAdminPermission(user);
+          callback(adminUser, isAdmin);
+        }
+      }
+    );
+
+    return () => {
+      subscription.unsubscribe();
+    };
   }
 
   /**
-   * Triggers Google Sign In for Admin users.
+   * Triggers Google OAuth Sign-In for Admin users via Supabase.
+   * Uses supabase.auth.signInWithOAuth({ provider: 'google', ... })
    */
-  public async signInWithGoogle(): Promise<User> {
-    const auth = firebaseManager.getAuth();
-    if (!auth) {
-      const initErr = firebaseManager.getInitError();
-      throw new Error(
-        initErr || 'Firebase Authentication is not available. Please verify that your Firebase environment variables (VITE_FIREBASE_API_KEY and VITE_FIREBASE_PROJECT_ID) are configured or firebase-applet-config.json exists.'
-      );
+  public async signInWithGoogle(): Promise<void> {
+    const client = getSupabaseClient();
+    const redirectTo = typeof window !== 'undefined'
+      ? `${window.location.origin}${window.location.pathname}`
+      : undefined;
+
+    const { data, error } = await client.auth.signInWithOAuth({
+      provider: 'google',
+      options: {
+        redirectTo,
+        queryParams: {
+          prompt: 'select_account',
+        },
+      },
+    });
+
+    if (error) {
+      throw error;
     }
-    const provider = new GoogleAuthProvider();
-    provider.setCustomParameters({ prompt: 'select_account' });
-    const result = await signInWithPopup(auth, provider);
-    return result.user;
+
+    if (data?.url && typeof window !== 'undefined') {
+      window.location.assign(data.url);
+    }
   }
 
   /**
-   * Signs out current Admin session.
+   * Signs out current Admin session via Supabase.
+   * Uses supabase.auth.signOut()
    */
   public async signOut(): Promise<void> {
-    const auth = firebaseManager.getAuth();
-    if (auth) {
-      await firebaseSignOut(auth);
+    if (supabase) {
+      const { error } = await supabase.auth.signOut();
+      if (error) {
+        console.warn('[AdminLeadsService] Supabase signOut note:', error.message);
+        throw error;
+      }
     }
   }
 

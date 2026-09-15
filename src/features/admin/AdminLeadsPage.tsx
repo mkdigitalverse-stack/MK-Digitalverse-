@@ -1,7 +1,6 @@
 import React, { useState, useEffect, useMemo } from 'react';
-import { User } from 'firebase/auth';
 import { CompleteLeadRecord, OpportunityStage } from '../../services/qualification';
-import { adminLeadsService } from '../../services/adminLeadsService';
+import { adminLeadsService, AdminAuthUser } from '../../services/adminLeadsService';
 import { AdminHeader } from './AdminHeader';
 import { AdminKpiMetrics } from './AdminKpiMetrics';
 import { AdminLeadFilters, FilterState } from './AdminLeadFilters';
@@ -31,7 +30,7 @@ const initialFilters: FilterState = {
 };
 
 export const AdminLeadsPage: React.FC<AdminLeadsPageProps> = ({ onReturnHome }) => {
-  const [currentUser, setCurrentUser] = useState<User | null>(null);
+  const [currentUser, setCurrentUser] = useState<AdminAuthUser | null>(null);
   const [isAdmin, setIsAdmin] = useState<boolean>(false);
   const [isAuthChecking, setIsAuthChecking] = useState<boolean>(true);
   const [authError, setAuthError] = useState<string | null>(null);
