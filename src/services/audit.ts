@@ -3,7 +3,8 @@
  * Encapsulates validation, central lead persistence, and analytics firing for audit submissions.
  */
 
-import { firebaseManager, LeadSubmission } from './firebase';
+import { LeadSubmission } from './firebase';
+import { submitPublicLead } from './supabasePublicLeads';
 import { analytics } from './analytics';
 import { getAttributionData } from '../lib/utm';
 
@@ -60,8 +61,8 @@ export async function submitGrowthAudit(payload: SubmitAuditPayload): Promise<{
     organizationName: payload.organizationName
   });
 
-  // 2. Persist lead via central Firestore /leads collection with offline fallback
-  const result = await firebaseManager.submitLead(leadPayload);
+  // 2. Persist lead via Supabase (submit_public_lead RPC / public.leads table) with offline fallback
+  const result = await submitPublicLead(leadPayload);
 
   return {
     success: true,
@@ -115,7 +116,7 @@ export async function submitDiscoveryCall(payload: {
     organizationName: payload.organizationName
   });
 
-  const result = await firebaseManager.submitLead(leadPayload);
+  const result = await submitPublicLead(leadPayload);
 
   return {
     success: true,
@@ -167,7 +168,7 @@ export async function submitContactEnquiry(payload: {
     organizationName: payload.organizationName
   });
 
-  const result = await firebaseManager.submitLead(leadPayload);
+  const result = await submitPublicLead(leadPayload);
 
   return {
     success: true,
