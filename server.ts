@@ -170,6 +170,11 @@ Server Recipient: ${process.env.NOTIFICATION_RECIPIENT_EMAIL || 'mkdigitalverse@
     }
   });
 
+  // 404 handler for any unmatched /api routes (must precede SPA fallback)
+  app.all('/api/*', (req, res) => {
+    res.status(404).json({ success: false, error: `API route ${req.method} ${req.originalUrl} not found` });
+  });
+
   // ----------------------------------------------------
   // VITE & STATIC FILE MIDDLEWARE
   // ----------------------------------------------------
@@ -202,26 +207,26 @@ Server Recipient: ${process.env.NOTIFICATION_RECIPIENT_EMAIL || 'mkdigitalverse@
       console.log(`[Server] Serving production static files from: ${distPath}`);
     }
 
-    // Serve static files from the dist directory
+    // Serve static files from the dist directory (index.html, /assets, images, favicon)
     app.use(express.static(distPath));
 
-    // Explicit root route handler to guarantee GET / returns dist/index.html
-    app.get('/', (req, res) => {
-      res.sendFile(indexPath);
-    });
-
-    // SPA fallback route for all non-API GET requests
+    // SPA client-side routing fallback:
+    // Any non-API, non-asset route (e.g. /, /about, /dashboard, /nonexistent-page) returns dist/index.html
     app.get('*', (req, res, next) => {
-      if (req.path.startsWith('/api')) {
+      if (req.path.startsWith('/api') || req.path.startsWith('/assets/')) {
         return next();
       }
-      res.sendFile(indexPath);
+      res.sendFile(indexPath, (err) => {
+        if (err) {
+          next(err);
+        }
+      });
     });
   }
 
-  // 404 handler for unmatched /api routes
-  app.use('/api', (req, res) => {
-    res.status(404).json({ success: false, error: `API route ${req.method} ${req.originalUrl} not found` });
+  // Fallback 404 for unhandled non-HTML requests (e.g., missing assets)
+  app.use((req, res) => {
+    res.status(404).send('Not Found');
   });
 
   // Start HTTP server with comprehensive error handling
