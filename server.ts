@@ -179,7 +179,10 @@ Server Recipient: ${process.env.NOTIFICATION_RECIPIENT_EMAIL || 'mkdigitalverse@
   // VITE & STATIC FILE MIDDLEWARE
   // ----------------------------------------------------
 
-  const isProduction = process.env.NODE_ENV === 'production' || process.argv[1]?.endsWith('server.cjs');
+  const isProduction =
+    process.env.NODE_ENV === 'production' ||
+    process.argv[1]?.endsWith('server.cjs') ||
+    process.argv[1]?.endsWith('server.js');
 
   if (!isProduction) {
     const vite = await createViteServer({
