@@ -3,7 +3,7 @@
  * Encapsulates validation, central lead persistence, and analytics firing for audit submissions.
  */
 
-import { LeadSubmission } from './firebase';
+import { LeadSubmission } from '../types/crm';
 import { submitPublicLead } from './supabasePublicLeads';
 import { analytics } from './analytics';
 import { getAttributionData } from '../lib/utm';

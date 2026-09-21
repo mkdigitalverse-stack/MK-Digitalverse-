@@ -2,8 +2,8 @@
  * Notification Architecture Specification & Utility Module
  * 
  * ARCHITECTURE DIRECTIVE (F-03.1):
- * All internal lead notifications are handled SERVER-SIDE via Firestore triggers
- * (e.g., Firebase Cloud Function on /leads/{leadId} document creation).
+ * All internal lead notifications are handled SERVER-SIDE via backend triggers
+ * (e.g., Server Notification Engine on lead intake creation).
  * 
  * The browser client MUST NEVER:
  * - Contain SMTP credentials, email provider API keys, or private service credentials.

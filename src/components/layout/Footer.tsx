@@ -1,7 +1,7 @@
 import React, { useState } from 'react';
 import { IndustryType } from '../../types';
 import { analytics } from '../../services/analytics';
-import { firebaseManager } from '../../services/firebase';
+import { submitNewsletterSubscriber } from '../../services/supabaseNewsletter';
 import { getAttributionData } from '../../lib/utm';
 import { SITE_CONFIG } from '../../config/site';
 import { 
@@ -88,7 +88,7 @@ export const Footer: React.FC<FooterProps> = ({ onSelectIndustry, onOpenAuditMod
     e.preventDefault();
     if (newsletterEmail.trim()) {
       const attribution = getAttributionData();
-      await firebaseManager.submitSubscriber({
+      await submitNewsletterSubscriber({
         email: newsletterEmail.trim(),
         source: 'footer_subscription',
         utm_source: attribution.utm_source,

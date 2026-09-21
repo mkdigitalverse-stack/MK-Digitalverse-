@@ -1,23 +1,12 @@
 /**
  * Admin Lead Management Service
- * Handles authenticated admin workspace operations, real-time Firestore queries for /leads,
- * and updates to qualification / workflow fields.
+ * Handles authenticated admin workspace operations, real-time Supabase queries for /leads,
+ * and updates to qualification / workflow fields and lead activities.
  */
 
-import { 
-  collection, 
-  onSnapshot, 
-  doc, 
-  updateDoc, 
-  addDoc,
-  query, 
-  orderBy, 
-  getDoc 
-} from 'firebase/firestore';
-import { User as SupabaseUser } from '@supabase/supabase-js';
+import { User as SupabaseUser, RealtimeChannel } from '@supabase/supabase-js';
 
 import { supabase, getSupabaseClient } from './supabase';
-import { firebaseManager, OperationType, FirestoreErrorInfo } from './firebase';
 import { 
   CompleteLeadRecord, 
   VisitorLeadData, 
@@ -61,21 +50,7 @@ export interface LeadActivity {
 }
 
 class AdminLeadsService {
-
-  private formatFirestoreError(error: unknown, operationType: OperationType, path: string): string {
-    const auth = firebaseManager.getAuth();
-    const errInfo: FirestoreErrorInfo = {
-      error: error instanceof Error ? error.message : String(error),
-      authInfo: {
-        userId: auth?.currentUser?.uid || null,
-        email: auth?.currentUser?.email || null,
-        emailVerified: auth?.currentUser?.emailVerified || null,
-      },
-      operationType,
-      path
-    };
-    return JSON.stringify(errInfo);
-  }
+  private activeActivityListeners = new Map<string, Set<(activity: LeadActivity) => void>>();
 
   /**
    * Evaluates if an authenticated Supabase user has authorized administrator status
@@ -229,280 +204,539 @@ class AdminLeadsService {
     }
   }
 
+  private leadListeners: Set<(leads: CompleteLeadRecord[]) => void> = new Set();
+  private cachedLeads: CompleteLeadRecord[] = [];
+  private pollIntervalId: any = null;
+
   /**
-   * Real-time subscription to /leads collection for authorized admins.
+   * Adapts a raw Supabase database row (snake_case) or Firestore document (camelCase)
+   * into the standard CompleteLeadRecord domain model expected by all Admin CRM components.
+   */
+  public mapRowToCompleteLeadRecord(raw: Record<string, any>): CompleteLeadRecord {
+    const leadId = String(raw.id || raw.leadId || '');
+
+    const visitorData: VisitorLeadData = {
+      contactName: raw.contact_name ?? raw.contactName ?? 'Anonymous',
+      email: raw.email || '',
+      phone: raw.phone || '',
+      organizationName: raw.organization_name ?? raw.organizationName ?? '',
+      website: raw.website || '',
+      location: raw.location || '',
+      healthcareCategory: raw.healthcare_category ?? raw.healthcareCategory ?? '',
+      biggestChallenge: raw.biggest_challenge ?? raw.biggestChallenge ?? '',
+      growthObjective: raw.growth_objective ?? raw.growthObjective ?? '',
+      investmentReadiness: raw.investment_readiness ?? raw.investmentReadiness ?? '',
+      leadType: raw.lead_type ?? raw.leadType ?? 'contact_enquiry',
+      utm_source: raw.utm_source ?? raw.utmSource ?? '',
+      utm_medium: raw.utm_medium ?? raw.utmMedium ?? '',
+      utm_campaign: raw.utm_campaign ?? raw.utmCampaign ?? '',
+      utm_content: raw.utm_content ?? raw.utmContent ?? '',
+      utm_term: raw.utm_term ?? raw.utmTerm ?? '',
+      gclid: raw.gclid || '',
+      fbclid: raw.fbclid || '',
+      landingPage: raw.landing_page ?? raw.landingPage ?? '',
+      referrer: raw.referrer || ''
+    };
+
+    // Evaluate default qualification on-the-fly if missing
+    const defaultEval = QualificationEngine.evaluateLead(visitorData);
+
+    const rawOppStage = raw.opportunity_stage ?? raw.opportunityStage;
+    const opportunityStage: OpportunityStage = (rawOppStage && ['new', 'contacted', 'qualified', 'discovery', 'proposal', 'negotiation', 'won', 'lost'].includes(rawOppStage))
+      ? rawOppStage
+      : (raw.status && ['new', 'contacted', 'qualified', 'proposal', 'won', 'lost'].includes(raw.status)) ? (raw.status as OpportunityStage) : 'new';
+
+    const estValRaw = raw.estimated_opportunity_value ?? raw.estimatedOpportunityValue;
+    const estVal = typeof estValRaw === 'number' ? estValRaw : (estValRaw !== undefined && estValRaw !== null && !isNaN(Number(estValRaw)) ? Number(estValRaw) : undefined);
+
+    const rawProb = raw.stage_probability ?? raw.stageProbability;
+    const prob = typeof rawProb === 'number' ? rawProb : (rawProb !== undefined && rawProb !== null && !isNaN(Number(rawProb)) ? Number(rawProb) : (STAGE_PROBABILITIES[opportunityStage] ?? 0.05));
+
+    const rawWeighted = raw.weighted_pipeline_value ?? raw.weightedPipelineValue;
+    const weightedVal = typeof rawWeighted === 'number' 
+      ? rawWeighted 
+      : (rawWeighted !== undefined && rawWeighted !== null && !isNaN(Number(rawWeighted)) ? Number(rawWeighted) : (estVal !== undefined ? Math.round(estVal * prob) : undefined));
+
+    const fitScoreRaw = raw.fit_score ?? raw.fitScore;
+    const fitScore = typeof fitScoreRaw === 'number' ? fitScoreRaw : (fitScoreRaw !== undefined && fitScoreRaw !== null && !isNaN(Number(fitScoreRaw)) ? Number(fitScoreRaw) : defaultEval.fitScore);
+
+    const qualification: InternalQualificationData = {
+      fitStatus: raw.fit_status ?? raw.fitStatus ?? defaultEval.fitStatus,
+      leadPriority: raw.lead_priority ?? raw.leadPriority ?? defaultEval.leadPriority,
+      intentLevel: raw.intent_level ?? raw.intentLevel ?? defaultEval.intentLevel,
+      growthStage: raw.growth_stage ?? raw.growthStage ?? defaultEval.growthStage,
+      healthcareCategoryNormalized: raw.healthcare_category_normalized ?? raw.healthcareCategoryNormalized ?? defaultEval.healthcareCategoryNormalized,
+      challengeCategory: raw.challenge_category ?? raw.challengeCategory ?? defaultEval.challengeCategory,
+      fitScore,
+      derivedLeadSource: raw.derived_lead_source ?? raw.derivedLeadSource ?? defaultEval.derivedLeadSource,
+      organizationSize: raw.organization_size ?? raw.organizationSize ?? undefined,
+      locationsCount: raw.locations_count ?? raw.locationsCount ?? undefined,
+      doctorCount: raw.doctor_count ?? raw.doctorCount ?? undefined,
+      currentMarketingStatus: raw.current_marketing_status ?? raw.currentMarketingStatus ?? undefined,
+      existingWebsite: raw.existing_website ?? raw.existingWebsite ?? undefined,
+      currentLeadSource: raw.current_lead_source ?? raw.currentLeadSource ?? undefined,
+      monthlyMarketingReadiness: raw.monthly_marketing_readiness ?? raw.monthlyMarketingReadiness ?? undefined,
+      internalNotes: raw.internal_notes ?? raw.internalNotes ?? '',
+      assignedTo: raw.assigned_to ?? raw.assignedTo ?? 'Unassigned',
+      nextFollowUpAt: raw.next_follow_up_at ?? raw.nextFollowUpAt ?? undefined,
+      lastContactedAt: raw.last_contacted_at ?? raw.lastContactedAt ?? undefined,
+      qualificationReviewedAt: raw.qualification_reviewed_at ?? raw.qualificationReviewedAt ?? undefined,
+      opportunityStage,
+      
+      estimatedOpportunityValue: estVal,
+      currency: raw.currency || 'USD',
+      weightedPipelineValue: weightedVal,
+      stageProbability: prob,
+      stageEnteredAt: raw.stage_entered_at ?? raw.stageEnteredAt ?? raw.created_at ?? raw.createdAt,
+      stageChangedAt: raw.stage_changed_at ?? raw.stageChangedAt ?? raw.created_at ?? raw.createdAt,
+      nextAction: raw.next_action ?? raw.nextAction ?? '',
+      lastUpdatedBy: raw.last_updated_by ?? raw.lastUpdatedBy ?? '',
+
+      discoveryDate: raw.discovery_date ?? raw.discoveryDate ?? undefined,
+      decisionMaker: raw.decision_maker ?? raw.decisionMaker ?? undefined,
+      decisionTimeline: raw.decision_timeline ?? raw.decisionTimeline ?? undefined,
+
+      proposalStatus: raw.proposal_status ?? raw.proposalStatus ?? 'not_started',
+      proposalValue: typeof (raw.proposal_value ?? raw.proposalValue) === 'number' ? (raw.proposal_value ?? raw.proposalValue) : undefined,
+      proposalSentAt: raw.proposal_sent_at ?? raw.proposalSentAt ?? undefined,
+      proposalFollowUpAt: raw.proposal_follow_up_at ?? raw.proposalFollowUpAt ?? undefined,
+
+      negotiationStatus: raw.negotiation_status ?? raw.negotiationStatus ?? undefined,
+      expectedDecisionDate: raw.expected_decision_date ?? raw.expectedDecisionDate ?? undefined,
+      negotiationNotes: raw.negotiation_notes ?? raw.negotiationNotes ?? undefined,
+
+      wonDate: raw.won_date ?? raw.wonDate ?? undefined,
+      finalContractValue: typeof (raw.final_contract_value ?? raw.finalContractValue) === 'number' ? (raw.final_contract_value ?? raw.finalContractValue) : undefined,
+
+      lostDate: raw.lost_date ?? raw.lostDate ?? undefined,
+      lostReason: raw.lost_reason ?? raw.lostReason ?? undefined,
+      lostNotes: raw.lost_notes ?? raw.lostNotes ?? undefined
+    };
+
+    return {
+      leadId,
+      status: raw.status || 'new',
+      createdAt: raw.created_at ?? raw.createdAt ?? new Date().toISOString(),
+      updatedAt: raw.updated_at ?? raw.updatedAt ?? raw.created_at ?? raw.createdAt ?? new Date().toISOString(),
+      notificationStatus: raw.notification_status ?? raw.notificationStatus,
+      visitorData,
+      qualification
+    };
+  }
+
+  /**
+   * Refreshes the leads list from Supabase and notifies active listeners.
+   */
+  public async refreshLeads(): Promise<CompleteLeadRecord[]> {
+    if (!supabase) return this.cachedLeads;
+
+    try {
+      const { data, error } = await supabase
+        .from('leads')
+        .select('*')
+        .order('created_at', { ascending: false });
+
+      if (error) {
+        console.error('[AdminLeadsService] Supabase leads query error:', error.message);
+        throw error;
+      }
+
+      const records: CompleteLeadRecord[] = (data || []).map((row) => this.mapRowToCompleteLeadRecord(row));
+      this.cachedLeads = records;
+      this.leadListeners.forEach((listener) => {
+        try {
+          listener(records);
+        } catch (lErr) {
+          console.error('[AdminLeadsService] Listener notification error:', lErr);
+        }
+      });
+      return records;
+    } catch (err) {
+      console.warn('[AdminLeadsService] Leads fetch note:', err);
+      throw err;
+    }
+  }
+
+  /**
+   * Subscribes to leads from Supabase PostgreSQL for authorized admins.
+   * Performs an initial query and provides a safe subscription callback API
+   * so existing Admin CRM views continue operating seamlessly.
+   * Realtime channels will be integrated in Phase 3.
    */
   public subscribeToLeads(
     onData: (leads: CompleteLeadRecord[]) => void,
     onError: (errorMessage: string) => void
   ): Unsubscribe {
-    const db = firebaseManager.getDb();
-    if (!db) {
-      onError('Firestore database connection is unavailable.');
+    if (!supabase) {
+      onError('Supabase client is not configured.');
       return () => {};
     }
 
-    const leadsRef = collection(db, 'leads');
-    const q = query(leadsRef, orderBy('createdAt', 'desc'));
+    this.leadListeners.add(onData);
 
-    return onSnapshot(
-      q,
-      (snapshot) => {
-        const records: CompleteLeadRecord[] = snapshot.docs.map((docSnap) => {
-          const raw = docSnap.data();
-          const leadId = docSnap.id;
+    // Deliver cached leads immediately if available
+    if (this.cachedLeads.length > 0) {
+      onData(this.cachedLeads);
+    }
 
-          const visitorData: VisitorLeadData = {
-            contactName: raw.contactName || 'Anonymous',
-            email: raw.email || '',
-            phone: raw.phone || '',
-            organizationName: raw.organizationName || '',
-            website: raw.website || '',
-            location: raw.location || '',
-            healthcareCategory: raw.healthcareCategory || '',
-            biggestChallenge: raw.biggestChallenge || '',
-            growthObjective: raw.growthObjective || '',
-            investmentReadiness: raw.investmentReadiness || '',
-            leadType: raw.leadType || 'contact_enquiry',
-            utm_source: raw.utm_source || '',
-            utm_medium: raw.utm_medium || '',
-            utm_campaign: raw.utm_campaign || '',
-            utm_content: raw.utm_content || '',
-            utm_term: raw.utm_term || '',
-            gclid: raw.gclid || '',
-            fbclid: raw.fbclid || '',
-            landingPage: raw.landingPage || '',
-            referrer: raw.referrer || ''
-          };
+    // Execute initial fetch
+    this.refreshLeads().catch((err: any) => {
+      onError(err?.message || 'Failed to fetch leads from Supabase');
+    });
 
-          // Evaluate default qualification on-the-fly if missing
-          const defaultEval = QualificationEngine.evaluateLead(visitorData);
+    // Light background sync interval (30s) while view is mounted
+    if (!this.pollIntervalId) {
+      this.pollIntervalId = setInterval(() => {
+        if (this.leadListeners.size > 0) {
+          this.refreshLeads().catch(() => {});
+        }
+      }, 30000);
+    }
 
-          const opportunityStage: OpportunityStage = (raw.opportunityStage && ['new', 'contacted', 'qualified', 'discovery', 'proposal', 'negotiation', 'won', 'lost'].includes(raw.opportunityStage))
-            ? raw.opportunityStage
-            : (raw.status && ['new', 'contacted', 'qualified', 'proposal', 'won', 'lost'].includes(raw.status)) ? (raw.status as OpportunityStage) : 'new';
-
-          const estVal = typeof raw.estimatedOpportunityValue === 'number' ? raw.estimatedOpportunityValue : undefined;
-          const prob = typeof raw.stageProbability === 'number' ? raw.stageProbability : (STAGE_PROBABILITIES[opportunityStage] ?? 0.05);
-          const weightedVal = typeof raw.weightedPipelineValue === 'number' 
-            ? raw.weightedPipelineValue 
-            : (estVal !== undefined ? Math.round(estVal * prob) : undefined);
-
-          const qualification: InternalQualificationData = {
-            fitStatus: raw.fitStatus || defaultEval.fitStatus,
-            leadPriority: raw.leadPriority || defaultEval.leadPriority,
-            intentLevel: raw.intentLevel || defaultEval.intentLevel,
-            growthStage: raw.growthStage || defaultEval.growthStage,
-            healthcareCategoryNormalized: raw.healthcareCategoryNormalized || defaultEval.healthcareCategoryNormalized,
-            challengeCategory: raw.challengeCategory || defaultEval.challengeCategory,
-            fitScore: typeof raw.fitScore === 'number' ? raw.fitScore : defaultEval.fitScore,
-            derivedLeadSource: raw.derivedLeadSource || defaultEval.derivedLeadSource,
-            organizationSize: raw.organizationSize || undefined,
-            locationsCount: raw.locationsCount || undefined,
-            doctorCount: raw.doctorCount || undefined,
-            currentMarketingStatus: raw.currentMarketingStatus || undefined,
-            existingWebsite: raw.existingWebsite || undefined,
-            currentLeadSource: raw.currentLeadSource || undefined,
-            monthlyMarketingReadiness: raw.monthlyMarketingReadiness || undefined,
-            internalNotes: raw.internalNotes || '',
-            assignedTo: raw.assignedTo || 'Unassigned',
-            nextFollowUpAt: raw.nextFollowUpAt || undefined,
-            lastContactedAt: raw.lastContactedAt || undefined,
-            qualificationReviewedAt: raw.qualificationReviewedAt || undefined,
-            opportunityStage,
-            
-            estimatedOpportunityValue: estVal,
-            currency: raw.currency || 'USD',
-            weightedPipelineValue: weightedVal,
-            stageProbability: prob,
-            stageEnteredAt: raw.stageEnteredAt || raw.createdAt,
-            stageChangedAt: raw.stageChangedAt || raw.createdAt,
-            nextAction: raw.nextAction || '',
-            lastUpdatedBy: raw.lastUpdatedBy || '',
-
-            discoveryDate: raw.discoveryDate || undefined,
-            decisionMaker: raw.decisionMaker || undefined,
-            decisionTimeline: raw.decisionTimeline || undefined,
-
-            proposalStatus: raw.proposalStatus || 'not_started',
-            proposalValue: typeof raw.proposalValue === 'number' ? raw.proposalValue : undefined,
-            proposalSentAt: raw.proposalSentAt || undefined,
-            proposalFollowUpAt: raw.proposalFollowUpAt || undefined,
-
-            negotiationStatus: raw.negotiationStatus || undefined,
-            expectedDecisionDate: raw.expectedDecisionDate || undefined,
-            negotiationNotes: raw.negotiationNotes || undefined,
-
-            wonDate: raw.wonDate || undefined,
-            finalContractValue: typeof raw.finalContractValue === 'number' ? raw.finalContractValue : undefined,
-
-            lostDate: raw.lostDate || undefined,
-            lostReason: raw.lostReason || undefined,
-            lostNotes: raw.lostNotes || undefined
-          };
-
-          return {
-            leadId,
-            status: raw.status || 'new',
-            createdAt: raw.createdAt || new Date().toISOString(),
-            updatedAt: raw.updatedAt || raw.createdAt || new Date().toISOString(),
-            notificationStatus: raw.notificationStatus,
-            visitorData,
-            qualification
-          };
-        });
-
-        onData(records);
-      },
-      (error) => {
-        const formattedErr = this.formatFirestoreError(error, OperationType.LIST, 'leads');
-        onError(formattedErr);
+    return () => {
+      this.leadListeners.delete(onData);
+      if (this.leadListeners.size === 0 && this.pollIntervalId) {
+        clearInterval(this.pollIntervalId);
+        this.pollIntervalId = null;
       }
-    );
+    };
   }
 
   /**
-   * Updates lead qualification, priority, status, pipeline, and internal sales notes.
+   * Updates lead qualification, priority, status, pipeline, and internal sales notes in Supabase.
    */
   public async updateLead(
     leadId: string,
     updates: Partial<InternalQualificationData> & { status?: CompleteLeadRecord['status'] }
   ): Promise<void> {
-    const db = firebaseManager.getDb();
-    if (!db) {
-      throw new Error('Firestore database is not connected.');
+    if (!supabase) {
+      throw new Error('Supabase client is not configured.');
     }
 
-    const leadRef = doc(db, 'leads', leadId);
     const timestamp = new Date().toISOString();
-
-    const payload: Record<string, any> = {
-      updatedAt: timestamp
+    const mappedPayload: Record<string, any> = {
+      updated_at: timestamp
     };
 
-    if (updates.status) payload.status = updates.status;
-    if (updates.fitStatus) payload.fitStatus = updates.fitStatus;
-    if (updates.leadPriority) payload.leadPriority = updates.leadPriority;
-    if (updates.intentLevel) payload.intentLevel = updates.intentLevel;
-    if (updates.growthStage) payload.growthStage = updates.growthStage;
-    if (updates.assignedTo !== undefined) payload.assignedTo = updates.assignedTo;
-    if (updates.nextFollowUpAt !== undefined) payload.nextFollowUpAt = updates.nextFollowUpAt;
-    if (updates.lastContactedAt !== undefined) payload.lastContactedAt = updates.lastContactedAt;
-    if (updates.internalNotes !== undefined) payload.internalNotes = updates.internalNotes;
-    if (updates.qualificationReviewedAt !== undefined) payload.qualificationReviewedAt = updates.qualificationReviewedAt;
-    if (typeof updates.fitScore === 'number') payload.fitScore = updates.fitScore;
+    if (updates.status !== undefined) mappedPayload.status = updates.status;
+    if (updates.fitStatus !== undefined) mappedPayload.fit_status = updates.fitStatus;
+    if (updates.leadPriority !== undefined) mappedPayload.lead_priority = updates.leadPriority;
+    if (updates.intentLevel !== undefined) mappedPayload.intent_level = updates.intentLevel;
+    if (updates.growthStage !== undefined) mappedPayload.growth_stage = updates.growthStage;
+    if (updates.assignedTo !== undefined) mappedPayload.assigned_to = updates.assignedTo;
+    if (updates.nextFollowUpAt !== undefined) mappedPayload.next_follow_up_at = updates.nextFollowUpAt;
+    if (updates.lastContactedAt !== undefined) mappedPayload.last_contacted_at = updates.lastContactedAt;
+    if (updates.internalNotes !== undefined) mappedPayload.internal_notes = updates.internalNotes;
+    if (updates.qualificationReviewedAt !== undefined) mappedPayload.qualification_reviewed_at = updates.qualificationReviewedAt;
+    if (typeof updates.fitScore === 'number') mappedPayload.fit_score = updates.fitScore;
 
     // F-06 Pipeline & Sales Updates
     if (updates.opportunityStage !== undefined) {
-      payload.opportunityStage = updates.opportunityStage;
-      payload.stageChangedAt = timestamp;
+      mappedPayload.opportunity_stage = updates.opportunityStage;
+      mappedPayload.stage_changed_at = timestamp;
       if (!updates.stageEnteredAt) {
-        payload.stageEnteredAt = timestamp;
+        mappedPayload.stage_entered_at = timestamp;
       }
       const stageProb = STAGE_PROBABILITIES[updates.opportunityStage] ?? 0.05;
-      payload.stageProbability = stageProb;
+      mappedPayload.stage_probability = stageProb;
 
       // Sync status with opportunity stage if applicable
       if (['new', 'contacted', 'qualified', 'proposal', 'won', 'lost'].includes(updates.opportunityStage)) {
-        payload.status = updates.opportunityStage;
+        mappedPayload.status = updates.opportunityStage;
       }
     }
 
     if (updates.estimatedOpportunityValue !== undefined) {
-      payload.estimatedOpportunityValue = updates.estimatedOpportunityValue;
+      mappedPayload.estimated_opportunity_value = updates.estimatedOpportunityValue;
       const prob = updates.stageProbability ?? (updates.opportunityStage ? (STAGE_PROBABILITIES[updates.opportunityStage] ?? 0.05) : 0.05);
-      payload.weightedPipelineValue = Math.round((updates.estimatedOpportunityValue || 0) * prob);
+      mappedPayload.weighted_pipeline_value = Math.round((updates.estimatedOpportunityValue || 0) * prob);
     }
 
-    if (updates.currency !== undefined) payload.currency = updates.currency;
-    if (updates.weightedPipelineValue !== undefined) payload.weightedPipelineValue = updates.weightedPipelineValue;
-    if (updates.stageProbability !== undefined) payload.stageProbability = updates.stageProbability;
-    if (updates.stageEnteredAt !== undefined) payload.stageEnteredAt = updates.stageEnteredAt;
-    if (updates.stageChangedAt !== undefined) payload.stageChangedAt = updates.stageChangedAt;
-    if (updates.nextAction !== undefined) payload.nextAction = updates.nextAction;
-    if (updates.lastUpdatedBy !== undefined) payload.lastUpdatedBy = updates.lastUpdatedBy;
+    if (updates.currency !== undefined) mappedPayload.currency = updates.currency;
+    if (updates.weightedPipelineValue !== undefined) mappedPayload.weighted_pipeline_value = updates.weightedPipelineValue;
+    if (updates.stageProbability !== undefined) mappedPayload.stage_probability = updates.stageProbability;
+    if (updates.stageEnteredAt !== undefined) mappedPayload.stage_entered_at = updates.stageEnteredAt;
+    if (updates.stageChangedAt !== undefined) mappedPayload.stage_changed_at = updates.stageChangedAt;
+    if (updates.nextAction !== undefined) mappedPayload.next_action = updates.nextAction;
+    if (updates.lastUpdatedBy !== undefined) mappedPayload.last_updated_by = updates.lastUpdatedBy;
 
-    if (updates.discoveryDate !== undefined) payload.discoveryDate = updates.discoveryDate;
-    if (updates.decisionMaker !== undefined) payload.decisionMaker = updates.decisionMaker;
-    if (updates.decisionTimeline !== undefined) payload.decisionTimeline = updates.decisionTimeline;
+    if (updates.discoveryDate !== undefined) mappedPayload.discovery_date = updates.discoveryDate;
+    if (updates.decisionMaker !== undefined) mappedPayload.decision_maker = updates.decisionMaker;
+    if (updates.decisionTimeline !== undefined) mappedPayload.decision_timeline = updates.decisionTimeline;
 
-    if (updates.proposalStatus !== undefined) payload.proposalStatus = updates.proposalStatus;
-    if (updates.proposalValue !== undefined) payload.proposalValue = updates.proposalValue;
-    if (updates.proposalSentAt !== undefined) payload.proposalSentAt = updates.proposalSentAt;
-    if (updates.proposalFollowUpAt !== undefined) payload.proposalFollowUpAt = updates.proposalFollowUpAt;
+    if (updates.proposalStatus !== undefined) mappedPayload.proposal_status = updates.proposalStatus;
+    if (updates.proposalValue !== undefined) mappedPayload.proposal_value = updates.proposalValue;
+    if (updates.proposalSentAt !== undefined) mappedPayload.proposal_sent_at = updates.proposalSentAt;
+    if (updates.proposalFollowUpAt !== undefined) mappedPayload.proposal_follow_up_at = updates.proposalFollowUpAt;
 
-    if (updates.negotiationStatus !== undefined) payload.negotiationStatus = updates.negotiationStatus;
-    if (updates.expectedDecisionDate !== undefined) payload.expectedDecisionDate = updates.expectedDecisionDate;
-    if (updates.negotiationNotes !== undefined) payload.negotiationNotes = updates.negotiationNotes;
+    if (updates.negotiationStatus !== undefined) mappedPayload.negotiation_status = updates.negotiationStatus;
+    if (updates.expectedDecisionDate !== undefined) mappedPayload.expected_decision_date = updates.expectedDecisionDate;
+    if (updates.negotiationNotes !== undefined) mappedPayload.negotiation_notes = updates.negotiationNotes;
 
-    if (updates.wonDate !== undefined) payload.wonDate = updates.wonDate;
-    if (updates.finalContractValue !== undefined) payload.finalContractValue = updates.finalContractValue;
+    if (updates.wonDate !== undefined) mappedPayload.won_date = updates.wonDate;
+    if (updates.finalContractValue !== undefined) mappedPayload.final_contract_value = updates.finalContractValue;
 
-    if (updates.lostDate !== undefined) payload.lostDate = updates.lostDate;
-    if (updates.lostReason !== undefined) payload.lostReason = updates.lostReason;
-    if (updates.lostNotes !== undefined) payload.lostNotes = updates.lostNotes;
+    if (updates.lostDate !== undefined) mappedPayload.lost_date = updates.lostDate;
+    if (updates.lostReason !== undefined) mappedPayload.lost_reason = updates.lostReason;
+    if (updates.lostNotes !== undefined) mappedPayload.lost_notes = updates.lostNotes;
 
     try {
-      await updateDoc(leadRef, payload);
-    } catch (error) {
-      const errStr = this.formatFirestoreError(error, OperationType.UPDATE, `leads/${leadId}`);
-      throw new Error(errStr);
+      const { error } = await supabase
+        .from('leads')
+        .update(mappedPayload)
+        .eq('id', leadId);
+
+      if (error) {
+        console.error('[AdminLeadsService] Error updating lead in Supabase:', error.message);
+        throw new Error(error.message);
+      }
+
+      // Optimistically update cached leads and notify listeners
+      this.cachedLeads = this.cachedLeads.map((lead) => {
+        if (lead.leadId === leadId) {
+          const updatedQual: InternalQualificationData = {
+            ...lead.qualification,
+            ...updates
+          };
+          return {
+            ...lead,
+            status: (updates.status || lead.status) as any,
+            updatedAt: timestamp,
+            qualification: updatedQual
+          };
+        }
+        return lead;
+      });
+      this.leadListeners.forEach((listener) => {
+        try {
+          listener(this.cachedLeads);
+        } catch (_) {}
+      });
+
+      // Synchronize in background
+      this.refreshLeads().catch(() => {});
+    } catch (error: any) {
+      console.error('[AdminLeadsService] Lead update exception:', error);
+      throw error;
     }
   }
 
   /**
-   * Logs an activity to the lead's subcollection /leads/{leadId}/activities
+   * Adapts a raw Supabase database row (snake_case) or record
+   * into the standard LeadActivity domain model expected by all Admin CRM components.
+   */
+  public mapRowToLeadActivity(row: Record<string, any>): LeadActivity {
+    return {
+      id: String(row.id || ''),
+      type: (row.type as LeadActivity['type']) || 'note_added',
+      description: String(row.description || ''),
+      actor: String(row.actor || 'Growth Partner'),
+      timestamp: row.created_at || row.timestamp || new Date().toISOString(),
+      metadata: row.metadata && typeof row.metadata === 'object' ? row.metadata : undefined
+    };
+  }
+
+  private notifyLocalActivityListeners(leadId: string, activity: LeadActivity): void {
+    const listeners = this.activeActivityListeners.get(leadId);
+    if (listeners && listeners.size > 0) {
+      listeners.forEach((listener) => {
+        try {
+          listener(activity);
+        } catch (_) {}
+      });
+    }
+  }
+
+  /**
+   * Logs an activity to Supabase public.lead_activities table.
+   * Preserves leadId, type, description, actor, created_at, and metadata.
    */
   public async addActivity(leadId: string, activity: Omit<LeadActivity, 'id' | 'timestamp'>): Promise<void> {
-    const db = firebaseManager.getDb();
-    if (!db) return;
+    if (!supabase) {
+      console.warn('[AdminLeadsService] Supabase client is not configured; cannot record activity.');
+      return;
+    }
 
     try {
-      const activitiesRef = collection(db, 'leads', leadId, 'activities');
       const timestamp = new Date().toISOString();
-      await addDoc(activitiesRef, {
-        ...activity,
-        timestamp
-      });
-    } catch (e) {
-      console.warn('[AdminLeadsService] Failed to record activity:', e);
+      const insertPayload = {
+        lead_id: leadId,
+        type: activity.type,
+        description: activity.description,
+        actor: activity.actor || 'Growth Partner',
+        created_at: timestamp,
+        metadata: activity.metadata || {}
+      };
+
+      const { data, error } = await supabase
+        .from('lead_activities')
+        .insert(insertPayload)
+        .select('*')
+        .maybeSingle();
+
+      if (error) {
+        console.error('[AdminLeadsService] Failed to record activity in Supabase:', error.message);
+      } else if (data) {
+        // Immediate local dispatch to active lead listeners (with duplicate protection)
+        const mapped = this.mapRowToLeadActivity(data);
+        this.notifyLocalActivityListeners(leadId, mapped);
+      }
+    } catch (e: any) {
+      console.warn('[AdminLeadsService] Failed to record activity:', e?.message || e);
     }
   }
 
   /**
-   * Subscribes to lead activity subcollection /leads/{leadId}/activities
+   * Subscribes to lead activities from Supabase PostgreSQL + Realtime.
+   * Loads initial activities using order('created_at', { ascending: false })
+   * and listens for real-time changes (INSERT, UPDATE, DELETE) on public.lead_activities.
    */
   public subscribeToActivities(
     leadId: string,
     onData: (activities: LeadActivity[]) => void,
     onError: (err: string) => void
   ): Unsubscribe {
-    const db = firebaseManager.getDb();
-    if (!db) {
-      onError('Database not initialized');
+    if (!supabase) {
+      onError('Supabase client is not configured.');
       return () => {};
     }
 
-    const activitiesRef = collection(db, 'leads', leadId, 'activities');
-    const q = query(activitiesRef, orderBy('timestamp', 'desc'));
+    let localActivities: LeadActivity[] = [];
+    let isDisposed = false;
+    let channel: RealtimeChannel | null = null;
 
-    return onSnapshot(
-      q,
-      (snap) => {
-        const activities: LeadActivity[] = snap.docs.map(docSnap => ({
-          id: docSnap.id,
-          type: docSnap.data().type || 'note_added',
-          description: docSnap.data().description || '',
-          actor: docSnap.data().actor || 'Growth Partner',
-          timestamp: docSnap.data().timestamp || new Date().toISOString(),
-          metadata: docSnap.data().metadata
-        }));
-        onData(activities);
-      },
-      (error) => {
-        onError(error.message);
+    const emitSorted = () => {
+      if (isDisposed) return;
+      // Stable descending sort: newest activities first, matching existing timeline view
+      const sorted = [...localActivities].sort((a, b) => {
+        const timeDiff = new Date(b.timestamp).getTime() - new Date(a.timestamp).getTime();
+        if (timeDiff !== 0) return timeDiff;
+        return (b.id || '').localeCompare(a.id || '');
+      });
+      onData(sorted);
+    };
+
+    // Internal listener for instant local optimistic updates from this client
+    const handleLocalActivity = (act: LeadActivity) => {
+      if (isDisposed) return;
+      const existingIdx = localActivities.findIndex((a) => a.id === act.id);
+      if (existingIdx >= 0) {
+        localActivities[existingIdx] = act;
+      } else {
+        localActivities.push(act);
       }
-    );
+      emitSorted();
+    };
+
+    if (!this.activeActivityListeners.has(leadId)) {
+      this.activeActivityListeners.set(leadId, new Set());
+    }
+    this.activeActivityListeners.get(leadId)!.add(handleLocalActivity);
+
+    // 1. Initial query from Supabase public.lead_activities
+    (async () => {
+      try {
+        const { data, error } = await supabase
+          .from('lead_activities')
+          .select('*')
+          .eq('lead_id', leadId)
+          .order('created_at', { ascending: false });
+
+        if (isDisposed) return;
+        if (error) {
+          console.warn('[AdminLeadsService] Initial lead_activities query note:', error.message);
+          onError(error.message);
+          return;
+        }
+
+        if (data) {
+          const fetched = data.map((row) => this.mapRowToLeadActivity(row));
+          const activityMap = new Map<string, LeadActivity>();
+
+          // Merge with any items that might have already arrived in memory
+          localActivities.forEach((act) => {
+            if (act.id) activityMap.set(act.id, act);
+          });
+          fetched.forEach((act) => {
+            if (act.id) activityMap.set(act.id, act);
+          });
+
+          localActivities = Array.from(activityMap.values());
+          emitSorted();
+        }
+      } catch (err: any) {
+        if (!isDisposed) {
+          console.warn('[AdminLeadsService] Activities fetch error:', err);
+          onError(err?.message || 'Failed to fetch lead activities');
+        }
+      }
+    })();
+
+    // 2. Real-time subscription to public.lead_activities for this lead
+    const channelName = `activities-lead-${leadId}-${Date.now()}-${Math.random().toString(36).substring(2, 7)}`;
+    channel = supabase
+      .channel(channelName)
+      .on(
+        'postgres_changes',
+        {
+          event: '*',
+          schema: 'public',
+          table: 'lead_activities',
+          filter: `lead_id=eq.${leadId}`
+        },
+        (payload) => {
+          if (isDisposed) return;
+
+          if (payload.eventType === 'INSERT') {
+            const newAct = this.mapRowToLeadActivity(payload.new);
+            // Duplicate protection: verify activity ID is not already present
+            const existingIdx = localActivities.findIndex((a) => a.id === newAct.id);
+            if (existingIdx >= 0) {
+              localActivities[existingIdx] = newAct;
+            } else {
+              localActivities.push(newAct);
+            }
+            emitSorted();
+          } else if (payload.eventType === 'UPDATE') {
+            const updatedAct = this.mapRowToLeadActivity(payload.new);
+            const existingIdx = localActivities.findIndex((a) => a.id === updatedAct.id);
+            if (existingIdx >= 0) {
+              localActivities[existingIdx] = updatedAct;
+            } else {
+              localActivities.push(updatedAct);
+            }
+            emitSorted();
+          } else if (payload.eventType === 'DELETE') {
+            const deletedId = String(payload.old?.id || '');
+            if (deletedId) {
+              localActivities = localActivities.filter((a) => a.id !== deletedId);
+              emitSorted();
+            }
+          }
+        }
+      )
+      .subscribe((status, err) => {
+        if (status === 'CHANNEL_ERROR' && err) {
+          console.warn('[AdminLeadsService] Realtime channel status note:', err);
+        }
+      });
+
+    // 3. Subscription cleanup
+    return () => {
+      isDisposed = true;
+      const listeners = this.activeActivityListeners.get(leadId);
+      if (listeners) {
+        listeners.delete(handleLocalActivity);
+        if (listeners.size === 0) {
+          this.activeActivityListeners.delete(leadId);
+        }
+      }
+      if (channel && supabase) {
+        Promise.resolve(supabase.removeChannel(channel)).catch((err) => {
+          console.warn('[AdminLeadsService] Cleanup removing realtime channel warning:', err);
+        });
+      }
+    };
   }
 }
 

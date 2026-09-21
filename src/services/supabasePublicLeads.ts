@@ -12,7 +12,7 @@
  */
 
 import { supabase } from './supabase';
-import { LeadSubmission, LeadStatus } from './firebase';
+import { LeadSubmission, LeadStatus } from '../types/crm';
 
 export interface SubmitPublicLeadResult {
   success: boolean;

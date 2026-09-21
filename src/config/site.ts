@@ -34,7 +34,6 @@ export const SITE_CONFIG = {
     playbook: 'Implementation Playbook™'
   },
   featureFlags: {
-    enableFirebasePersistence: false, // Set to true when Firebase is fully configured
     enableAnalytics: true,
     enableDesignSystemRoute: true,
     enableRoiCalculator: true

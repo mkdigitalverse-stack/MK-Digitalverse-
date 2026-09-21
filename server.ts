@@ -1,3 +1,4 @@
+import 'dotenv/config';
 import express from 'express';
 import path from 'path';
 import { createServer as createViteServer } from 'vite';
@@ -5,7 +6,7 @@ import { NotificationEngine } from './src/services/serverNotificationEngine';
 
 async function startServer() {
   const app = express();
-  const PORT = Number(process.env.PORT) || 3000;
+  const PORT = Number(process.env.PORT || 3000);
 
   app.use(express.json());
 
@@ -173,7 +174,9 @@ Server Recipient: ${process.env.NOTIFICATION_RECIPIENT_EMAIL || 'mkdigitalverse@
   // VITE & STATIC FILE MIDLLEWARE
   // ----------------------------------------------------
 
-  if (process.env.NODE_ENV !== 'production') {
+  const isProduction = process.env.NODE_ENV === 'production' || process.argv[1]?.endsWith('server.cjs');
+
+  if (!isProduction) {
     const vite = await createViteServer({
       server: { middlewareMode: true },
       appType: 'spa'
@@ -187,8 +190,8 @@ Server Recipient: ${process.env.NOTIFICATION_RECIPIENT_EMAIL || 'mkdigitalverse@
     });
   }
 
-  app.listen(PORT, '0.0.0.0', () => {
-    console.log(`[MK Digitalverse Server Engine] Running on http://0.0.0.0:${PORT}`);
+  app.listen(PORT, "0.0.0.0", () => {
+    console.log(`Server running on port ${PORT}`);
   });
 }
 

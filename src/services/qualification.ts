@@ -7,7 +7,7 @@
  * Separates Visitor-Provided Data, Internal Qualification Data, and System Data.
  */
 
-import { LeadType } from './firebase';
+import { LeadType } from '../types/crm';
 
 // 1. VISITOR-PROVIDED DATA INTERFACE
 export interface VisitorLeadData {
