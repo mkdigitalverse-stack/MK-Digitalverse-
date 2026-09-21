@@ -1,6 +1,7 @@
 import 'dotenv/config';
 import express from 'express';
 import path from 'path';
+import fs from 'fs';
 import { createServer as createViteServer } from 'vite';
 import { NotificationEngine } from './src/services/serverNotificationEngine';
 
@@ -169,9 +170,8 @@ Server Recipient: ${process.env.NOTIFICATION_RECIPIENT_EMAIL || 'mkdigitalverse@
     }
   });
 
-
   // ----------------------------------------------------
-  // VITE & STATIC FILE MIDLLEWARE
+  // VITE & STATIC FILE MIDDLEWARE
   // ----------------------------------------------------
 
   const isProduction = process.env.NODE_ENV === 'production' || process.argv[1]?.endsWith('server.cjs');
@@ -183,16 +183,66 @@ Server Recipient: ${process.env.NOTIFICATION_RECIPIENT_EMAIL || 'mkdigitalverse@
     });
     app.use(vite.middlewares);
   } else {
-    const distPath = path.join(process.cwd(), 'dist');
+    // Robust resolution of distPath across Node.js versions and Hostinger execution directories
+    const candidatePaths = [
+      path.resolve(process.cwd(), 'dist'),
+      path.resolve(__dirname),
+      path.resolve(__dirname, 'dist'),
+      path.resolve(process.cwd())
+    ];
+
+    const distPath = candidatePaths.find((p) => fs.existsSync(path.join(p, 'index.html'))) || path.resolve(process.cwd(), 'dist');
+    const indexPath = path.join(distPath, 'index.html');
+
+    // Startup check: verify built frontend existence
+    if (!fs.existsSync(indexPath)) {
+      console.error(`[Server Error] dist/index.html was not found at: ${indexPath}`);
+      console.error('[Server Error] Please run "npm run build" to compile frontend assets before starting the production server.');
+    } else {
+      console.log(`[Server] Serving production static files from: ${distPath}`);
+    }
+
+    // Serve static files from the dist directory
     app.use(express.static(distPath));
-    app.get('*', (req, res) => {
-      res.sendFile(path.join(distPath, 'index.html'));
+
+    // Explicit root route handler to guarantee GET / returns dist/index.html
+    app.get('/', (req, res) => {
+      res.sendFile(indexPath);
+    });
+
+    // SPA fallback route for all non-API GET requests
+    app.get('*', (req, res, next) => {
+      if (req.path.startsWith('/api')) {
+        return next();
+      }
+      res.sendFile(indexPath);
     });
   }
 
-  app.listen(PORT, "0.0.0.0", () => {
-    console.log(`Server running on port ${PORT}`);
+  // 404 handler for unmatched /api routes
+  app.use('/api', (req, res) => {
+    res.status(404).json({ success: false, error: `API route ${req.method} ${req.originalUrl} not found` });
+  });
+
+  // Start HTTP server with comprehensive error handling
+  const server = app.listen(PORT, '0.0.0.0', () => {
+    console.log(`Server running on port ${PORT} (0.0.0.0) [mode: ${isProduction ? 'production' : 'development'}]`);
+  });
+
+  // Port binding and runtime error handling
+  server.on('error', (err: NodeJS.ErrnoException) => {
+    if (err.code === 'EADDRINUSE') {
+      console.error(`[Server Error] Port ${PORT} is already in use. Please check running processes or change PORT.`);
+    } else if (err.code === 'EACCES') {
+      console.error(`[Server Error] Permission denied to bind to port ${PORT}.`);
+    } else {
+      console.error('[Server Error] Unexpected server error:', err);
+    }
+    process.exit(1);
   });
 }
 
-startServer();
+startServer().catch((err) => {
+  console.error('[Server Error] Fatal server startup failure:', err);
+  process.exit(1);
+});
