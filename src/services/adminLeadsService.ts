@@ -216,7 +216,7 @@ class AdminLeadsService {
     const leadId = String(raw.id || raw.leadId || '');
 
     const visitorData: VisitorLeadData = {
-      contactName: raw.contact_name ?? raw.contactName ?? 'Anonymous',
+      contactName: raw.contact_name ?? raw.name ?? raw.contactName ?? 'Anonymous',
       email: raw.email || '',
       phone: raw.phone || '',
       organizationName: raw.organization_name ?? raw.organizationName ?? '',

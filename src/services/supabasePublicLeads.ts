@@ -65,6 +65,7 @@ export async function submitPublicLead(
   // Note: 'id' is deliberately omitted to allow PostgreSQL to generate a valid UUID
   // via default gen_random_uuid() and prevent 22P02 type errors.
   const supabaseLeadRecord: Record<string, unknown> = {
+    name: sanitizedName,
     contact_name: sanitizedName,
     email: sanitizedEmail,
     phone,
@@ -137,6 +138,7 @@ export async function submitPublicLead(
       // Provide both parameter naming conventions (prefixed and un-prefixed) so the RPC
       // resolves regardless of whether PostgreSQL parameter signature uses p_ prefixes.
       const rpcArgs: Record<string, unknown> = {
+        p_name: sanitizedName,
         p_contact_name: sanitizedName,
         p_email: sanitizedEmail,
         p_phone: phone,
@@ -157,6 +159,7 @@ export async function submitPublicLead(
         p_fbclid: payload.fbclid || '',
         p_landing_page: payload.landingPage || '',
         p_referrer: payload.referrer || '',
+        name: sanitizedName,
         contact_name: sanitizedName,
         email: sanitizedEmail,
         phone,
