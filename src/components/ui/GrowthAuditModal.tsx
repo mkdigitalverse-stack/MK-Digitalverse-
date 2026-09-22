@@ -15,7 +15,9 @@ import {
   Sparkles,
   TrendingUp,
   Target,
-  DollarSign
+  DollarSign,
+  AlertCircle,
+  Loader2
 } from 'lucide-react';
 
 interface GrowthAuditModalProps {
@@ -30,6 +32,8 @@ export const GrowthAuditModal: React.FC<GrowthAuditModalProps> = ({
 }) => {
   const [step, setStep] = useState<number>(1);
   const [submitted, setSubmitted] = useState<boolean>(false);
+  const [isSubmitting, setIsSubmitting] = useState<boolean>(false);
+  const [submitError, setSubmitError] = useState<string | null>(null);
   
   // Lead Qualification Form State (Section 17 Requirements)
   const [formData, setFormData] = useState({
@@ -60,11 +64,13 @@ export const GrowthAuditModal: React.FC<GrowthAuditModalProps> = ({
 
   const handleNext = async (e: React.FormEvent) => {
     e.preventDefault();
+    setSubmitError(null);
     if (step < 3) {
       setStep(step + 1);
     } else {
+      setIsSubmitting(true);
       try {
-        await submitGrowthAudit({
+        const res = await submitGrowthAudit({
           fullName: formData.contactName,
           email: formData.email,
           phone: formData.phone,
@@ -74,10 +80,18 @@ export const GrowthAuditModal: React.FC<GrowthAuditModalProps> = ({
           growthObjective: formData.growthObjective,
           investmentReadiness: formData.investmentReadiness
         });
-      } catch (err) {
+
+        if (res.success) {
+          setSubmitted(true);
+        } else {
+          setSubmitError(res.message || 'Unable to submit your request. Please try again.');
+        }
+      } catch (err: any) {
         console.error('Audit submission error:', err);
+        setSubmitError(err?.message || 'A network error occurred. Please try again.');
+      } finally {
+        setIsSubmitting(false);
       }
-      setSubmitted(true);
     }
   };
 
@@ -327,13 +341,25 @@ export const GrowthAuditModal: React.FC<GrowthAuditModalProps> = ({
                 </div>
               )}
 
+              {/* Submission Error Banner */}
+              {submitError && (
+                <div className="p-3 rounded-xl bg-red-500/10 border border-red-500/20 text-red-400 text-xs flex items-center gap-2">
+                  <AlertCircle className="w-4 h-4 shrink-0 text-red-400" />
+                  <span>{submitError}</span>
+                </div>
+              )}
+
               {/* Form Navigation Controls */}
               <div className="flex items-center justify-between pt-2">
                 {step > 1 ? (
                   <button
                     type="button"
-                    onClick={() => setStep(step - 1)}
-                    className="px-4 py-2 rounded-xl bg-zinc-900 border border-white/10 text-zinc-300 text-xs font-semibold hover:text-white flex items-center gap-1.5 cursor-pointer"
+                    disabled={isSubmitting}
+                    onClick={() => {
+                      setSubmitError(null);
+                      setStep(step - 1);
+                    }}
+                    className="px-4 py-2 rounded-xl bg-zinc-900 border border-white/10 text-zinc-300 text-xs font-semibold hover:text-white flex items-center gap-1.5 cursor-pointer disabled:opacity-50"
                   >
                     <ArrowLeft className="w-4 h-4" />
                     <span>Back</span>
@@ -342,10 +368,20 @@ export const GrowthAuditModal: React.FC<GrowthAuditModalProps> = ({
 
                 <button
                   type="submit"
-                  className="px-7 py-3.5 rounded-full bg-[#FF6B00] hover:bg-[#E66000] text-white font-extrabold text-xs uppercase tracking-wider transition-all shadow-xl active:scale-95 flex items-center gap-2 ml-auto cursor-pointer"
+                  disabled={isSubmitting}
+                  className={`px-7 py-3.5 rounded-full bg-[#FF6B00] hover:bg-[#E66000] text-white font-extrabold text-xs uppercase tracking-wider transition-all shadow-xl active:scale-95 flex items-center gap-2 ml-auto cursor-pointer ${isSubmitting ? 'opacity-70 cursor-not-allowed' : ''}`}
                 >
-                  <span>{step === 3 ? 'Submit Growth Request' : 'Next Step'}</span>
-                  <ArrowRight className="w-4 h-4 text-white" />
+                  {isSubmitting ? (
+                    <>
+                      <Loader2 className="w-4 h-4 animate-spin text-white" />
+                      <span>Submitting...</span>
+                    </>
+                  ) : (
+                    <>
+                      <span>{step === 3 ? 'Submit Growth Request' : 'Next Step'}</span>
+                      <ArrowRight className="w-4 h-4 text-white" />
+                    </>
+                  )}
                 </button>
               </div>
 

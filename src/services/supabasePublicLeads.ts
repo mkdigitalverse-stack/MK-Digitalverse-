@@ -18,6 +18,7 @@ export interface SubmitPublicLeadResult {
   success: boolean;
   leadId: string;
   source: 'supabase_rpc' | 'supabase_table' | 'offline_queue';
+  error?: string;
 }
 
 // In-memory cooldown tracking to prevent rapid duplicate double-clicks
@@ -46,16 +47,24 @@ export async function submitPublicLead(
   const lastTime = lastSubmissionTimes.get(sanitizedEmail) || 0;
   if (now - lastTime < 10000) {
     const existingId = `lead_${now}`;
-    return { success: true, leadId: existingId, source: 'offline_queue' };
+    return {
+      success: false,
+      leadId: existingId,
+      source: 'offline_queue',
+      error: 'A submission with this email was recently processed. Please wait a few moments before trying again.'
+    };
   }
-  lastSubmissionTimes.set(sanitizedEmail, now);
 
-  const leadId = `lead_${Date.now()}_${Math.random().toString(36).substring(2, 7)}`;
+  // Client-side tracking identifier for local queue and notification correlation
+  const clientTrackingId = typeof crypto !== 'undefined' && crypto.randomUUID
+    ? crypto.randomUUID()
+    : `lead_${Date.now()}_${Math.random().toString(36).substring(2, 7)}`;
   const timestamp = new Date().toISOString();
 
-  // Full snake_case payload for Supabase public.leads table & submit_public_lead RPC
-  const supabaseLeadRecord = {
-    id: leadId,
+  // Full snake_case payload for Supabase public.leads table & submit_public_lead RPC.
+  // Note: 'id' is deliberately omitted to allow PostgreSQL to generate a valid UUID
+  // via default gen_random_uuid() and prevent 22P02 type errors.
+  const supabaseLeadRecord: Record<string, unknown> = {
     contact_name: sanitizedName,
     email: sanitizedEmail,
     phone,
@@ -84,19 +93,19 @@ export async function submitPublicLead(
   // Preserve in local storage retry queue for offline resilience
   try {
     const existingQueue = JSON.parse(localStorage.getItem('mk_leads_queue') || '[]');
-    existingQueue.push({ leadId, data: supabaseLeadRecord });
+    existingQueue.push({ leadId: clientTrackingId, data: supabaseLeadRecord });
     localStorage.setItem('mk_leads_queue', JSON.stringify(existingQueue));
   } catch (e) {
     console.warn('[SupabasePublicLeads] Local storage save note:', e);
   }
 
-  // Trigger internal notifications asynchronously
-  const triggerNotification = () => {
+  // Trigger internal notifications asynchronously only after database confirmation
+  const triggerNotification = (assignedLeadId: string) => {
     fetch('/api/notifications/process', {
       method: 'POST',
       headers: { 'Content-Type': 'application/json' },
       body: JSON.stringify({
-        leadId,
+        leadId: assignedLeadId,
         leadType: payload.leadType,
         contactName: sanitizedName,
         organizationName,
@@ -114,10 +123,12 @@ export async function submitPublicLead(
   const removeFromLocalQueue = () => {
     try {
       const queue = JSON.parse(localStorage.getItem('mk_leads_queue') || '[]');
-      const updatedQueue = queue.filter((item: { leadId: string }) => item.leadId !== leadId);
+      const updatedQueue = queue.filter((item: { leadId: string }) => item.leadId !== clientTrackingId);
       localStorage.setItem('mk_leads_queue', JSON.stringify(updatedQueue));
     } catch (_) {}
   };
+
+  let lastErrorMessage = '';
 
   // Attempt Supabase submission if client is configured
   if (supabase) {
@@ -173,42 +184,56 @@ export async function submitPublicLead(
       const { data: rpcData, error: rpcError } = await supabase.rpc('submit_public_lead', rpcArgs);
 
       if (!rpcError) {
+        lastSubmissionTimes.set(sanitizedEmail, Date.now());
         removeFromLocalQueue();
-        triggerNotification();
         const returnedId = (rpcData && typeof rpcData === 'object' && 'id' in rpcData)
           ? String((rpcData as { id: unknown }).id)
-          : (typeof rpcData === 'string' ? rpcData : leadId);
+          : (typeof rpcData === 'string' ? rpcData : clientTrackingId);
 
+        triggerNotification(returnedId);
         return { success: true, leadId: returnedId, source: 'supabase_rpc' };
       }
 
+      lastErrorMessage = rpcError.message;
       console.warn('[SupabasePublicLeads] submit_public_lead RPC warning, falling back to public.leads insert:', rpcError.message);
-    } catch (rpcEx) {
+    } catch (rpcEx: any) {
+      lastErrorMessage = rpcEx?.message || String(rpcEx);
       console.warn('[SupabasePublicLeads] submit_public_lead RPC call note:', rpcEx);
     }
 
     // 2. Secondary Method: Direct insert into public.leads table
+    // CRITICAL: Do NOT chain .select('id') or .maybeSingle().
+    // An anonymous visitor has INSERT permissions but NOT SELECT permissions on public.leads.
+    // Omission of .select() uses PostgREST 'Prefer: return=minimal' so PostgreSQL evaluates
+    // only the INSERT RLS policy and does not trigger SELECT RLS violations.
     try {
-      const { data: insertData, error: insertError } = await supabase
+      const { error: insertError } = await supabase
         .from('leads')
-        .insert(supabaseLeadRecord)
-        .select('id')
-        .maybeSingle();
+        .insert(supabaseLeadRecord);
 
       if (!insertError) {
+        lastSubmissionTimes.set(sanitizedEmail, Date.now());
         removeFromLocalQueue();
-        triggerNotification();
-        const returnedId = insertData?.id ? String(insertData.id) : leadId;
-        return { success: true, leadId: returnedId, source: 'supabase_table' };
+        triggerNotification(clientTrackingId);
+        return { success: true, leadId: clientTrackingId, source: 'supabase_table' };
       }
 
-      console.warn('[SupabasePublicLeads] public.leads insert warning, lead queued locally:', insertError.message);
-    } catch (tableEx) {
+      lastErrorMessage = insertError.message;
+      console.warn('[SupabasePublicLeads] public.leads insert rejected by Supabase:', insertError.message);
+    } catch (tableEx: any) {
+      lastErrorMessage = tableEx?.message || String(tableEx);
       console.warn('[SupabasePublicLeads] public.leads table insert note:', tableEx);
     }
+  } else {
+    lastErrorMessage = 'Supabase client is not configured in this environment.';
   }
 
   // 3. Fallback: Preserved in offline local queue
-  triggerNotification();
-  return { success: true, leadId, source: 'offline_queue' };
+  // Report genuine failure so the caller and website do NOT display a false success message.
+  return {
+    success: false,
+    leadId: clientTrackingId,
+    source: 'offline_queue',
+    error: lastErrorMessage || 'Unable to complete lead insertion into database. Saved to offline queue.'
+  };
 }

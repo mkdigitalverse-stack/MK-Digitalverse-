@@ -64,6 +64,14 @@ export async function submitGrowthAudit(payload: SubmitAuditPayload): Promise<{
   // 2. Persist lead via Supabase (submit_public_lead RPC / public.leads table) with offline fallback
   const result = await submitPublicLead(leadPayload);
 
+  if (!result.success) {
+    return {
+      success: false,
+      message: result.error || 'Unable to submit your Healthcare Growth Audit™ request at this time. Please try again.',
+      recordId: result.leadId
+    };
+  }
+
   return {
     success: true,
     message: 'Your Healthcare Growth Audit™ request has been received. Our team will review the information and contact you regarding the next step.',
@@ -118,6 +126,14 @@ export async function submitDiscoveryCall(payload: {
 
   const result = await submitPublicLead(leadPayload);
 
+  if (!result.success) {
+    return {
+      success: false,
+      message: result.error || 'Unable to submit your discovery call request at this time. Please try again.',
+      recordId: result.leadId
+    };
+  }
+
   return {
     success: true,
     message: 'Your discovery call request has been received. Our team will review the details and follow up regarding the next step.',
@@ -169,6 +185,14 @@ export async function submitContactEnquiry(payload: {
   });
 
   const result = await submitPublicLead(leadPayload);
+
+  if (!result.success) {
+    return {
+      success: false,
+      message: result.error || 'Unable to submit your enquiry at this time. Please try again.',
+      recordId: result.leadId
+    };
+  }
 
   return {
     success: true,
