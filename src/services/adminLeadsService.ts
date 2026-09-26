@@ -241,21 +241,31 @@ class AdminLeadsService {
     // Evaluate default qualification on-the-fly if missing
     const defaultEval = QualificationEngine.evaluateLead(visitorData);
 
-    const rawOppStage = raw.opportunity_stage ?? raw.opportunityStage;
-    const opportunityStage: OpportunityStage = (rawOppStage && ['new', 'contacted', 'qualified', 'discovery', 'proposal', 'negotiation', 'won', 'lost'].includes(rawOppStage))
-      ? rawOppStage
-      : (raw.status && ['new', 'contacted', 'qualified', 'proposal', 'won', 'lost'].includes(raw.status)) ? (raw.status as OpportunityStage) : 'new';
+    const rawOppCandidate = raw.opportunity_stage ?? raw.opportunityStage ?? raw.stage ?? raw.status;
+    const normalizedStage = typeof rawOppCandidate === 'string'
+      ? rawOppCandidate.toLowerCase().trim()
+      : '';
+    const VALID_STAGES: OpportunityStage[] = ['new', 'contacted', 'qualified', 'discovery', 'proposal', 'negotiation', 'won', 'lost'];
+    const opportunityStage: OpportunityStage = VALID_STAGES.includes(normalizedStage as OpportunityStage)
+      ? (normalizedStage as OpportunityStage)
+      : 'new';
 
     const estValRaw = raw.estimated_opportunity_value ?? raw.estimatedOpportunityValue;
     const estVal = typeof estValRaw === 'number' ? estValRaw : (estValRaw !== undefined && estValRaw !== null && !isNaN(Number(estValRaw)) ? Number(estValRaw) : undefined);
 
     const rawProb = raw.stage_probability ?? raw.stageProbability;
-    const prob = typeof rawProb === 'number' ? rawProb : (rawProb !== undefined && rawProb !== null && !isNaN(Number(rawProb)) ? Number(rawProb) : (STAGE_PROBABILITIES[opportunityStage] ?? 0.05));
+    const prob = typeof rawProb === 'number'
+      ? rawProb
+      : (rawProb !== undefined && rawProb !== null && !isNaN(Number(rawProb))
+          ? Number(rawProb)
+          : (STAGE_PROBABILITIES[opportunityStage] ?? 0.05));
 
     const rawWeighted = raw.weighted_pipeline_value ?? raw.weightedPipelineValue;
     const weightedVal = typeof rawWeighted === 'number' 
       ? rawWeighted 
-      : (rawWeighted !== undefined && rawWeighted !== null && !isNaN(Number(rawWeighted)) ? Number(rawWeighted) : (estVal !== undefined ? Math.round(estVal * prob) : undefined));
+      : (rawWeighted !== undefined && rawWeighted !== null && !isNaN(Number(rawWeighted))
+          ? Number(rawWeighted)
+          : (estVal !== undefined ? Math.round(estVal * prob) : undefined));
 
     const fitScoreRaw = raw.fit_score ?? raw.fitScore;
     const fitScore = typeof fitScoreRaw === 'number' ? fitScoreRaw : (fitScoreRaw !== undefined && fitScoreRaw !== null && !isNaN(Number(fitScoreRaw)) ? Number(fitScoreRaw) : defaultEval.fitScore);
@@ -313,9 +323,15 @@ class AdminLeadsService {
       lostNotes: raw.lost_notes ?? raw.lostNotes ?? undefined
     };
 
+    const rawStatusNormalized = typeof raw.status === 'string' ? raw.status.toLowerCase().trim() : '';
+    const VALID_STATUSES: CompleteLeadRecord['status'][] = ['new', 'contacted', 'qualified', 'proposal', 'won', 'lost'];
+    const status: CompleteLeadRecord['status'] = VALID_STATUSES.includes(rawStatusNormalized as CompleteLeadRecord['status'])
+      ? (rawStatusNormalized as CompleteLeadRecord['status'])
+      : (VALID_STATUSES.includes(opportunityStage as any) ? (opportunityStage as CompleteLeadRecord['status']) : 'new');
+
     return {
       leadId,
-      status: raw.status || 'new',
+      status,
       createdAt: raw.created_at ?? raw.createdAt ?? new Date().toISOString(),
       updatedAt: raw.updated_at ?? raw.updatedAt ?? raw.created_at ?? raw.createdAt ?? new Date().toISOString(),
       notificationStatus: raw.notification_status ?? raw.notificationStatus,
@@ -430,25 +446,41 @@ class AdminLeadsService {
     if (updates.qualificationReviewedAt !== undefined) mappedPayload.qualification_reviewed_at = updates.qualificationReviewedAt;
     if (typeof updates.fitScore === 'number') mappedPayload.fit_score = updates.fitScore;
 
+    // Normalize target stage if provided
+    const targetStage: OpportunityStage | undefined = updates.opportunityStage
+      ? (typeof updates.opportunityStage === 'string'
+          ? (updates.opportunityStage as string).toLowerCase().trim() as OpportunityStage
+          : updates.opportunityStage)
+      : undefined;
+
     // F-06 Pipeline & Sales Updates
-    if (updates.opportunityStage !== undefined) {
-      mappedPayload.opportunity_stage = updates.opportunityStage;
+    if (targetStage !== undefined) {
+      mappedPayload.opportunity_stage = targetStage;
       mappedPayload.stage_changed_at = timestamp;
       if (!updates.stageEnteredAt) {
         mappedPayload.stage_entered_at = timestamp;
       }
-      const stageProb = STAGE_PROBABILITIES[updates.opportunityStage] ?? 0.05;
+      const stageProb = updates.stageProbability ?? (STAGE_PROBABILITIES[targetStage] ?? 0.05);
       mappedPayload.stage_probability = stageProb;
 
-      // Sync status with opportunity stage if applicable
-      if (['new', 'contacted', 'qualified', 'proposal', 'won', 'lost'].includes(updates.opportunityStage)) {
-        mappedPayload.status = updates.opportunityStage;
+      // Sync status with opportunity stage ensuring database constraints are respected
+      if (['new', 'contacted', 'qualified', 'proposal', 'won', 'lost'].includes(targetStage)) {
+        mappedPayload.status = targetStage;
+      } else if (targetStage === 'discovery') {
+        mappedPayload.status = 'qualified';
+      } else if (targetStage === 'negotiation') {
+        mappedPayload.status = 'proposal';
+      }
+    } else if (updates.status !== undefined) {
+      const normalizedStatus = updates.status.toLowerCase().trim();
+      if (['new', 'contacted', 'qualified', 'proposal', 'won', 'lost'].includes(normalizedStatus)) {
+        mappedPayload.opportunity_stage = normalizedStatus;
       }
     }
 
     if (updates.estimatedOpportunityValue !== undefined) {
       mappedPayload.estimated_opportunity_value = updates.estimatedOpportunityValue;
-      const prob = updates.stageProbability ?? (updates.opportunityStage ? (STAGE_PROBABILITIES[updates.opportunityStage] ?? 0.05) : 0.05);
+      const prob = updates.stageProbability ?? (targetStage ? (STAGE_PROBABILITIES[targetStage] ?? 0.05) : 0.05);
       mappedPayload.weighted_pipeline_value = Math.round((updates.estimatedOpportunityValue || 0) * prob);
     }
 
@@ -494,13 +526,40 @@ class AdminLeadsService {
       // Optimistically update cached leads and notify listeners
       this.cachedLeads = this.cachedLeads.map((lead) => {
         if (lead.leadId === leadId) {
+          const effectiveStage = targetStage || (updates.status && ['new', 'contacted', 'qualified', 'proposal', 'won', 'lost'].includes(updates.status as OpportunityStage) ? (updates.status as OpportunityStage) : undefined) || lead.qualification.opportunityStage || 'new';
+          const stageProb = updates.stageProbability ?? (STAGE_PROBABILITIES[effectiveStage] ?? 0.05);
+          const estVal = typeof updates.estimatedOpportunityValue === 'number'
+            ? updates.estimatedOpportunityValue
+            : lead.qualification.estimatedOpportunityValue;
+          const weightedVal = typeof updates.weightedPipelineValue === 'number'
+            ? updates.weightedPipelineValue
+            : (estVal !== undefined ? Math.round(estVal * stageProb) : undefined);
+
+          let nextStatus: CompleteLeadRecord['status'] = lead.status;
+          if (targetStage) {
+            if (['new', 'contacted', 'qualified', 'proposal', 'won', 'lost'].includes(targetStage)) {
+              nextStatus = targetStage as CompleteLeadRecord['status'];
+            } else if (targetStage === 'discovery') {
+              nextStatus = 'qualified';
+            } else if (targetStage === 'negotiation') {
+              nextStatus = 'proposal';
+            }
+          } else if (updates.status) {
+            nextStatus = updates.status;
+          }
+
           const updatedQual: InternalQualificationData = {
             ...lead.qualification,
-            ...updates
+            ...updates,
+            opportunityStage: effectiveStage,
+            stageProbability: stageProb,
+            weightedPipelineValue: weightedVal,
+            stageChangedAt: targetStage ? timestamp : (lead.qualification.stageChangedAt || timestamp),
+            stageEnteredAt: updates.stageEnteredAt || lead.qualification.stageEnteredAt || timestamp
           };
           return {
             ...lead,
-            status: (updates.status || lead.status) as any,
+            status: nextStatus,
             updatedAt: timestamp,
             qualification: updatedQual
           };
