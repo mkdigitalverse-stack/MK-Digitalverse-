@@ -1,16 +1,39 @@
 import React, { useState, useEffect, useMemo } from 'react';
 import { CompleteLeadRecord, OpportunityStage } from '../../services/qualification';
 import { adminLeadsService, AdminAuthUser } from '../../services/adminLeadsService';
+import { GrowthAnalyticsService } from '../../services/growthAnalyticsService';
+import { AdminSidebar, AdminViewTab } from './AdminSidebar';
 import { AdminHeader } from './AdminHeader';
-import { AdminKpiMetrics } from './AdminKpiMetrics';
+import { AdminOverviewView } from './AdminOverviewView';
 import { AdminLeadFilters, FilterState } from './AdminLeadFilters';
 import { AdminLeadTable } from './AdminLeadTable';
 import { AdminPipelineBoard } from './AdminPipelineBoard';
 import { AdminFollowUpsView } from './AdminFollowUpsView';
 import { AdminNotificationCenter } from './AdminNotificationCenter';
 import { AdminGrowthAnalyticsView } from './AdminGrowthAnalyticsView';
+import { AnalyticsFunnelCard } from './AnalyticsFunnelCard';
+import { AnalyticsChannelEconomics } from './AnalyticsChannelEconomics';
+import { AnalyticsSegmentMatrix } from './AnalyticsSegmentMatrix';
+import { AnalyticsDiagnosticAlerts } from './AnalyticsDiagnosticAlerts';
 import { AdminLeadDetailModal } from './AdminLeadDetailModal';
-import { ShieldCheck, Lock, AlertOctagon, ArrowLeft, RefreshCw, LayoutGrid, Table, CalendarClock, Bell, LineChart } from 'lucide-react';
+import { AdminSalesReportsView } from './AdminSalesReportsView';
+import { AdminLeadReportsView } from './AdminLeadReportsView';
+import { exportLeadsToCsv } from '../../services/leadExportService';
+import { 
+  ShieldCheck, 
+  Lock, 
+  AlertOctagon, 
+  ArrowLeft, 
+  RefreshCw, 
+  Sparkles, 
+  X, 
+  Clock, 
+  DollarSign,
+  TrendingUp,
+  Award,
+  CheckCircle2,
+  Download
+} from 'lucide-react';
 
 interface AdminLeadsPageProps {
   onReturnHome: () => void;
@@ -39,8 +62,14 @@ export const AdminLeadsPage: React.FC<AdminLeadsPageProps> = ({ onReturnHome }) 
   const [isLoadingLeads, setIsLoadingLeads] = useState<boolean>(true);
   const [leadFetchError, setLeadFetchError] = useState<string | null>(null);
 
-  const [activeViewTab, setActiveViewTab] = useState<'pipeline' | 'database' | 'followups' | 'notifications' | 'analytics'>('pipeline');
+  const [activeTab, setActiveTab] = useState<AdminViewTab>('overview');
+  const [isOpenMobileNav, setIsOpenMobileNav] = useState<boolean>(false);
+  const [isCollapsedDesktop, setIsCollapsedDesktop] = useState<boolean>(false);
+  const [comingSoonModal, setComingSoonModal] = useState<{ featureName: string; category: string } | null>(null);
+
   const [filters, setFilters] = useState<FilterState>(initialFilters);
+  const [selectedLeadIds, setSelectedLeadIds] = useState<Set<string>>(new Set());
+  const [exportFeedback, setExportFeedback] = useState<{ message: string; type: 'success' | 'info' } | null>(null);
   const [selectedLead, setSelectedLead] = useState<CompleteLeadRecord | null>(null);
   const [isRefreshing, setIsRefreshing] = useState<boolean>(false);
 
@@ -82,6 +111,18 @@ export const AdminLeadsPage: React.FC<AdminLeadsPageProps> = ({ onReturnHome }) 
     return () => unsubscribe();
   }, [isAdmin]);
 
+  // Handle ESC key for modals and drawers
+  useEffect(() => {
+    const handleKeyDown = (e: KeyboardEvent) => {
+      if (e.key === 'Escape') {
+        if (comingSoonModal) setComingSoonModal(null);
+        if (isOpenMobileNav) setIsOpenMobileNav(false);
+      }
+    };
+    window.addEventListener('keydown', handleKeyDown);
+    return () => window.removeEventListener('keydown', handleKeyDown);
+  }, [comingSoonModal, isOpenMobileNav]);
+
   const handleSignIn = async () => {
     setAuthError(null);
     try {
@@ -99,8 +140,7 @@ export const AdminLeadsPage: React.FC<AdminLeadsPageProps> = ({ onReturnHome }) 
 
   const handleRefresh = () => {
     setIsRefreshing(true);
-    setLeadFetchError(null);
-    setTimeout(() => setIsRefreshing(false), 800);
+    adminLeadsService.refreshLeads();
   };
 
   const handleSaveLead = async (leadId: string, updates: any) => {
@@ -133,348 +173,524 @@ export const AdminLeadsPage: React.FC<AdminLeadsPageProps> = ({ onReturnHome }) 
     }
   };
 
-  // 3. Filter and Sort Leads
+  // 3. Filter and Sort Leads for Database view
   const filteredLeads = useMemo(() => {
     return leads.filter((item) => {
-      // Search
       if (filters.searchQuery) {
         const q = filters.searchQuery.toLowerCase();
-        const nameMatch = item.visitorData.contactName.toLowerCase().includes(q);
-        const emailMatch = item.visitorData.email.toLowerCase().includes(q);
+        const contactMatch = item.visitorData.contactName.toLowerCase().includes(q);
         const orgMatch = (item.visitorData.organizationName || '').toLowerCase().includes(q);
-        const phoneMatch = (item.visitorData.phone || '').toLowerCase().includes(q);
-        if (!nameMatch && !emailMatch && !orgMatch && !phoneMatch) return false;
+        const emailMatch = item.visitorData.email.toLowerCase().includes(q);
+        const challengeMatch = (item.visitorData.biggestChallenge || '').toLowerCase().includes(q);
+        if (!contactMatch && !orgMatch && !emailMatch && !challengeMatch) return false;
       }
 
-      // Status
       if (filters.status !== 'all' && item.status !== filters.status) return false;
-
-      // Priority
       if (filters.priority !== 'all' && item.qualification.leadPriority !== filters.priority) return false;
-
-      // Fit Status
       if (filters.fitStatus !== 'all' && item.qualification.fitStatus !== filters.fitStatus) return false;
-
-      // Intent
       if (filters.intentLevel !== 'all' && item.qualification.intentLevel !== filters.intentLevel) return false;
-
-      // Healthcare Category
-      if (filters.healthcareCategory !== 'all' && item.qualification.healthcareCategoryNormalized !== filters.healthcareCategory) return false;
-
-      // Lead Type
+      if (filters.healthcareCategory !== 'all' && item.visitorData.healthcareCategory !== filters.healthcareCategory) return false;
       if (filters.leadType !== 'all' && item.visitorData.leadType !== filters.leadType) return false;
-
-      // Lead Source
       if (filters.leadSource !== 'all' && item.qualification.derivedLeadSource !== filters.leadSource) return false;
 
-      // Date Range
       if (filters.dateRange !== 'all') {
-        const createdMs = new Date(item.createdAt).getTime();
-        const nowMs = new Date().getTime();
-        const diffDays = (nowMs - createdMs) / (1000 * 3600 * 24);
-
-        if (filters.dateRange === 'today' && diffDays > 1) return false;
-        if (filters.dateRange === '7days' && diffDays > 7) return false;
-        if (filters.dateRange === '30days' && diffDays > 30) return false;
+        const createdDate = new Date(item.createdAt);
+        const now = new Date();
+        if (filters.dateRange === 'today') {
+          const isSameDay = createdDate.toDateString() === now.toDateString();
+          if (!isSameDay) return false;
+        } else if (filters.dateRange === '7days') {
+          const diffDays = (now.getTime() - createdDate.getTime()) / (1000 * 3600 * 24);
+          if (diffDays > 7 || diffDays < 0) return false;
+        } else if (filters.dateRange === '30days') {
+          const diffDays = (now.getTime() - createdDate.getTime()) / (1000 * 3600 * 24);
+          if (diffDays > 30 || diffDays < 0) return false;
+        } else if (filters.dateRange === 'this_month') {
+          const isThisMonth = createdDate.getFullYear() === now.getFullYear() && createdDate.getMonth() === now.getMonth();
+          if (!isThisMonth) return false;
+        } else if (filters.dateRange === 'prev_month') {
+          const prevMonth = now.getMonth() === 0 ? 11 : now.getMonth() - 1;
+          const prevYear = now.getMonth() === 0 ? now.getFullYear() - 1 : now.getFullYear();
+          const isPrevMonth = createdDate.getFullYear() === prevYear && createdDate.getMonth() === prevMonth;
+          if (!isPrevMonth) return false;
+        }
       }
 
       return true;
     }).sort((a, b) => {
       switch (filters.sortBy) {
         case 'oldest':
-          return a.createdAt.localeCompare(b.createdAt);
+          return new Date(a.createdAt).getTime() - new Date(b.createdAt).getTime();
         case 'fitScore':
           return b.qualification.fitScore - a.qualification.fitScore;
         case 'priority': {
-          const pOrder: Record<string, number> = { urgent: 4, high: 3, normal: 2, low: 1 };
-          return (pOrder[b.qualification.leadPriority] || 0) - (pOrder[a.qualification.leadPriority] || 0);
+          const priorityWeights = { urgent: 4, high: 3, normal: 2, low: 1 };
+          return (priorityWeights[b.qualification.leadPriority] || 0) - (priorityWeights[a.qualification.leadPriority] || 0);
         }
         case 'followUp': {
-          const aDate = a.qualification.nextFollowUpAt ? new Date(a.qualification.nextFollowUpAt).getTime() : Infinity;
-          const bDate = b.qualification.nextFollowUpAt ? new Date(b.qualification.nextFollowUpAt).getTime() : Infinity;
-          return aDate - bDate;
+          const dateA = a.qualification.nextFollowUpAt ? new Date(a.qualification.nextFollowUpAt).getTime() : Infinity;
+          const dateB = b.qualification.nextFollowUpAt ? new Date(b.qualification.nextFollowUpAt).getTime() : Infinity;
+          return dateA - dateB;
         }
         case 'newest':
         default:
-          return b.createdAt.localeCompare(a.createdAt);
+          return new Date(b.createdAt).getTime() - new Date(a.createdAt).getTime();
       }
     });
   }, [leads, filters]);
 
-  // Loading state
+  // Memoized intelligence metrics for reporting tabs
+  const intelligence = useMemo(() => {
+    return GrowthAnalyticsService.generateIntelligence(leads);
+  }, [leads]);
+
+  // 3b. Row-Level Selection Handlers (ADM-03)
+  const handleToggleSelectLead = (leadId: string) => {
+    setSelectedLeadIds(prev => {
+      const next = new Set(prev);
+      if (next.has(leadId)) {
+        next.delete(leadId);
+      } else {
+        next.add(leadId);
+      }
+      return next;
+    });
+  };
+
+  const handleSelectAllVisible = () => {
+    const visibleIds = filteredLeads.map(l => l.leadId);
+    const allSelected = visibleIds.length > 0 && visibleIds.every(id => selectedLeadIds.has(id));
+    if (allSelected) {
+      setSelectedLeadIds(prev => {
+        const next = new Set(prev);
+        visibleIds.forEach(id => next.delete(id));
+        return next;
+      });
+    } else {
+      setSelectedLeadIds(prev => {
+        const next = new Set(prev);
+        visibleIds.forEach(id => next.add(id));
+        return next;
+      });
+    }
+  };
+
+  const handleClearSelection = () => {
+    setSelectedLeadIds(new Set());
+  };
+
+  // 3c. Lead Operations: CSV Exports (ADM-03)
+  const handleExportFiltered = () => {
+    const filterParts: string[] = [];
+    if (filters.status !== 'all') filterParts.push(filters.status);
+    if (filters.priority !== 'all') filterParts.push(filters.priority);
+    if (filters.healthcareCategory !== 'all') filterParts.push(filters.healthcareCategory);
+    if (filters.dateRange !== 'all') filterParts.push(filters.dateRange);
+    if (filters.searchQuery) filterParts.push(filters.searchQuery.slice(0, 10));
+
+    const summary = filterParts.length > 0 ? filterParts.join('_') : 'filtered';
+    const result = exportLeadsToCsv(filteredLeads, 'filtered', summary);
+    if (result.success) {
+      setExportFeedback({
+        message: `Successfully exported ${result.rowCount} filtered leads to ${result.fileName}`,
+        type: 'success'
+      });
+      setTimeout(() => setExportFeedback(null), 5000);
+    }
+  };
+
+  const handleExportSelected = () => {
+    const selectedLeads = leads.filter(l => selectedLeadIds.has(l.leadId));
+    if (selectedLeads.length === 0) return;
+    const result = exportLeadsToCsv(selectedLeads, 'selected');
+    if (result.success) {
+      setExportFeedback({
+        message: `Successfully exported ${result.rowCount} selected leads to ${result.fileName}`,
+        type: 'success'
+      });
+      setTimeout(() => setExportFeedback(null), 5000);
+    }
+  };
+
+  const handleExportAll = () => {
+    const result = exportLeadsToCsv(leads, 'all');
+    if (result.success) {
+      setExportFeedback({
+        message: `Successfully exported all ${result.rowCount} database leads to ${result.fileName}`,
+        type: 'success'
+      });
+      setTimeout(() => setExportFeedback(null), 5000);
+    }
+  };
+
+  // 4. Loading & Auth Guards
   if (isAuthChecking) {
     return (
-      <div className="min-h-screen bg-slate-950 flex flex-col items-center justify-center text-white p-4">
-        <div className="w-10 h-10 border-3 border-amber-500 border-t-transparent rounded-full animate-spin mb-4" />
-        <p className="text-sm font-mono text-slate-400">Authenticating admin workspace security permissions...</p>
+      <div className="min-h-screen bg-slate-900 flex items-center justify-center p-4">
+        <div className="text-center space-y-4">
+          <div className="w-12 h-12 border-3 border-amber-500 border-t-transparent rounded-full animate-spin mx-auto" />
+          <h2 className="text-lg font-bold text-white tracking-tight">Verifying Admin Credentials...</h2>
+          <p className="text-xs text-slate-400 font-mono">Authenticating with Google Workspace</p>
+        </div>
       </div>
     );
   }
 
-  // Unauthenticated View
-  if (!currentUser) {
+  if (!currentUser || !isAdmin) {
     return (
-      <div className="min-h-screen bg-slate-950 flex flex-col justify-between text-white">
-        
-        {/* Top Navbar */}
-        <div className="p-4 border-b border-slate-900 flex items-center justify-between">
-          <button
-            onClick={onReturnHome}
-            className="inline-flex items-center space-x-1.5 text-xs text-slate-400 hover:text-white transition-colors"
-          >
-            <ArrowLeft className="w-4 h-4" />
-            <span>Return to Public Website</span>
-          </button>
-          <div className="flex items-center space-x-1.5 text-xs text-amber-400">
-            <Lock className="w-3.5 h-3.5" />
-            <span className="font-mono text-[11px]">ADMIN PORTAL</span>
-          </div>
-        </div>
-
-        {/* Login Card */}
-        <div className="max-w-md w-full mx-auto px-4 py-12 text-center">
-          <div className="w-14 h-14 rounded-2xl bg-gradient-to-br from-amber-500 to-amber-300 p-0.5 mx-auto mb-6 shadow-xl">
-            <div className="w-full h-full bg-slate-950 rounded-[14px] flex items-center justify-center">
-              <ShieldCheck className="w-8 h-8 text-amber-400" />
+      <div className="min-h-screen bg-slate-950 flex flex-col justify-center items-center p-4 sm:p-6 text-white">
+        <div className="max-w-md w-full bg-slate-900 border border-slate-800 rounded-2xl p-6 sm:p-8 shadow-2xl space-y-6">
+          <div className="text-center space-y-2">
+            <div className="w-12 h-12 rounded-xl bg-amber-500/10 border border-amber-500/30 flex items-center justify-center mx-auto text-amber-400 mb-4">
+              <ShieldCheck className="w-6 h-6" />
             </div>
-          </div>
-
-          <h1 className="text-2xl font-bold tracking-tight text-white mb-2">
-            MK Digitalverse Lead Intelligence
-          </h1>
-          <p className="text-xs text-slate-400 mb-8 leading-relaxed">
-            Secure internal operational workspace for reviewing, qualifying, and managing healthcare growth partner enquiries.
-          </p>
-
-          {authError && (
-            <div className="mb-6 p-3 bg-red-950/60 border border-red-800 text-red-200 rounded-lg text-xs font-medium">
-              {authError}
-            </div>
-          )}
-
-          <button
-            onClick={handleSignIn}
-            className="w-full py-3.5 px-4 rounded-xl bg-amber-500 hover:bg-amber-400 text-slate-950 font-bold text-sm shadow-lg transition-colors flex items-center justify-center space-x-2"
-          >
-            <svg className="w-5 h-5 fill-current" viewBox="0 0 24 24">
-              <path d="M12.545,10.239v3.821h5.445c-0.712,2.315-2.647,3.972-5.445,3.972c-3.332,0-6.033-2.701-6.033-6.032s2.701-6.032,6.033-6.032c1.498,0,2.866,0.549,3.921,1.453l2.814-2.814C17.503,2.988,15.139,2,12.545,2C7.021,2,2.543,6.477,2.543,12s4.478,10,10.002,10c8.396,0,10.249-7.85,9.426-11.761H12.545z"/>
-            </svg>
-            <span>Sign In with Google</span>
-          </button>
-
-          <p className="text-[11px] text-slate-500 mt-6">
-            Access strictly restricted to authorized MK Digitalverse team administrators.
-          </p>
-        </div>
-
-        {/* Footer */}
-        <div className="p-4 border-t border-slate-900 text-center text-[10px] text-slate-600">
-          MK DIGITALVERSE INTERNAL LEAD MANAGEMENT INFRASTRUCTURE
-        </div>
-
-      </div>
-    );
-  }
-
-  // Authenticated but Unauthorized View
-  if (!isAdmin) {
-    return (
-      <div className="min-h-screen bg-slate-950 flex flex-col items-center justify-center text-white p-4">
-        <div className="max-w-md w-full bg-slate-900 border border-slate-800 rounded-2xl p-8 text-center space-y-4">
-          <div className="w-12 h-12 rounded-full bg-red-950/60 border border-red-800 text-red-400 flex items-center justify-center mx-auto">
-            <AlertOctagon className="w-6 h-6" />
-          </div>
-          <h2 className="text-lg font-bold text-white">Access Denied</h2>
-          <p className="text-xs text-slate-400">
-            The signed-in account (<strong className="text-slate-200">{currentUser.email}</strong>) is authenticated but does not possess administrator permissions in Firestore.
-          </p>
-          <div className="pt-2 flex flex-col space-y-2">
-            <button
-              onClick={handleSignOut}
-              className="w-full py-2 bg-slate-800 hover:bg-slate-700 text-white rounded-lg text-xs font-semibold"
-            >
-              Sign Out & Try Another Account
-            </button>
-            <button
-              onClick={onReturnHome}
-              className="w-full py-2 text-slate-400 hover:text-white text-xs"
-            >
-              Return to Website
-            </button>
-          </div>
-        </div>
-      </div>
-    );
-  }
-
-  // Authorized Admin Interface View
-  return (
-    <div className="min-h-screen bg-slate-100 flex flex-col font-sans">
-      
-      {/* Header */}
-      <AdminHeader
-        user={currentUser}
-        onRefresh={handleRefresh}
-        onLogout={handleSignOut}
-        isRefreshing={isRefreshing}
-      />
-
-      {/* Main Content Workspace */}
-      <main className="flex-1 max-w-7xl w-full mx-auto px-4 sm:px-6 lg:px-8 py-6">
-        
-        {/* Workspace Sub-Header */}
-        <div className="flex flex-col md:flex-row items-start md:items-center justify-between mb-6 gap-4">
-          <div>
-            <h1 className="text-xl font-bold text-slate-900 tracking-tight">
-              MK Digitalverse Sales Pipeline & Lead Intelligence
-            </h1>
-            <p className="text-xs text-slate-500 mt-0.5">
-              Real-time sales pipeline, qualification intelligence, and follow-up workspace for healthcare growth partnerships.
+            <h2 className="text-xl font-bold tracking-tight text-white">MK DIGITALVERSE</h2>
+            <p className="text-xs text-amber-400 font-mono uppercase tracking-wider">Restricted Growth Partner Console</p>
+            <p className="text-xs text-slate-400 mt-2">
+              Sign in with your authorized admin account (<strong>mkdigitalverse@gmail.com</strong>) to access the lead intelligence CRM.
             </p>
           </div>
 
-          <div className="flex items-center space-x-3 self-stretch md:self-auto justify-between md:justify-end">
-            {/* View Mode Switcher */}
-            <div className="bg-slate-200/80 p-1 rounded-xl flex items-center space-x-1 border border-slate-300/60 shadow-2xs">
-              <button
-                onClick={() => setActiveViewTab('pipeline')}
-                className={`inline-flex items-center space-x-1.5 px-3 py-1.5 rounded-lg text-xs font-bold transition-all ${
-                  activeViewTab === 'pipeline'
-                    ? 'bg-amber-600 text-white shadow-xs'
-                    : 'text-slate-700 hover:text-slate-900 hover:bg-slate-300/50'
-                }`}
-              >
-                <LayoutGrid className="w-3.5 h-3.5" />
-                <span>Sales Pipeline</span>
-              </button>
-
-              <button
-                onClick={() => setActiveViewTab('database')}
-                className={`inline-flex items-center space-x-1.5 px-3 py-1.5 rounded-lg text-xs font-bold transition-all ${
-                  activeViewTab === 'database'
-                    ? 'bg-amber-600 text-white shadow-xs'
-                    : 'text-slate-700 hover:text-slate-900 hover:bg-slate-300/50'
-                }`}
-              >
-                <Table className="w-3.5 h-3.5" />
-                <span>Lead Database</span>
-              </button>
-
-              <button
-                onClick={() => setActiveViewTab('followups')}
-                className={`inline-flex items-center space-x-1.5 px-3 py-1.5 rounded-lg text-xs font-bold transition-all ${
-                  activeViewTab === 'followups'
-                    ? 'bg-amber-600 text-white shadow-xs'
-                    : 'text-slate-700 hover:text-slate-900 hover:bg-slate-300/50'
-                }`}
-              >
-                <CalendarClock className="w-3.5 h-3.5" />
-                <span>Follow-Up Queue</span>
-              </button>
-
-              <button
-                onClick={() => setActiveViewTab('notifications')}
-                className={`inline-flex items-center space-x-1.5 px-3 py-1.5 rounded-lg text-xs font-bold transition-all ${
-                  activeViewTab === 'notifications'
-                    ? 'bg-amber-600 text-white shadow-xs'
-                    : 'text-slate-700 hover:text-slate-900 hover:bg-slate-300/50'
-                }`}
-              >
-                <Bell className="w-3.5 h-3.5" />
-                <span>Notification Center</span>
-              </button>
-
-              <button
-                onClick={() => setActiveViewTab('analytics')}
-                className={`inline-flex items-center space-x-1.5 px-3 py-1.5 rounded-lg text-xs font-bold transition-all ${
-                  activeViewTab === 'analytics'
-                    ? 'bg-amber-600 text-white shadow-xs'
-                    : 'text-slate-700 hover:text-slate-900 hover:bg-slate-300/50'
-                }`}
-              >
-                <LineChart className="w-3.5 h-3.5" />
-                <span>Analytics & Intelligence</span>
-              </button>
+          {authError && (
+            <div className="p-3 bg-red-950/60 border border-red-800 text-red-200 text-xs rounded-xl flex items-center space-x-2">
+              <AlertOctagon className="w-4 h-4 text-red-400 shrink-0" />
+              <span>{authError}</span>
             </div>
+          )}
+
+          {currentUser && !isAdmin && (
+            <div className="p-3 bg-amber-950/60 border border-amber-800 text-amber-200 text-xs rounded-xl space-y-1">
+              <div className="font-bold flex items-center space-x-1.5">
+                <Lock className="w-3.5 h-3.5" />
+                <span>Unauthorized Account</span>
+              </div>
+              <p className="text-[11px] opacity-90">
+                Logged in as <strong>{currentUser.email}</strong>, which is not an active admin.
+              </p>
+            </div>
+          )}
+
+          <div className="space-y-3 pt-2">
+            <button
+              onClick={handleSignIn}
+              className="w-full flex items-center justify-center space-x-2 py-3 px-4 rounded-xl bg-gradient-to-r from-amber-500 to-amber-600 hover:from-amber-600 hover:to-amber-700 text-slate-950 font-bold text-sm shadow-lg shadow-amber-500/10 transition-all min-h-[44px]"
+            >
+              <svg className="w-4 h-4" viewBox="0 0 24 24">
+                <path
+                  fill="currentColor"
+                  d="M22.56 12.25c0-.78-.07-1.53-.2-2.25H12v4.26h5.92c-.26 1.37-1.04 2.53-2.21 3.31v2.77h3.57c2.08-1.92 3.28-4.74 3.28-8.09z"
+                />
+                <path
+                  fill="currentColor"
+                  d="M12 23c2.97 0 5.46-.98 7.28-2.66l-3.57-2.77c-.98.66-2.23 1.06-3.71 1.06-2.86 0-5.29-1.93-6.16-4.53H2.18v2.84C3.99 20.53 7.7 23 12 23z"
+                />
+                <path
+                  fill="currentColor"
+                  d="M5.84 14.09c-.22-.66-.35-1.36-.35-2.09s.13-1.43.35-2.09V7.06H2.18C1.43 8.55 1 10.22 1 12s.43 3.45 1.18 4.94l2.85-2.22.81-.63z"
+                />
+                <path
+                  fill="currentColor"
+                  d="M12 5.38c1.62 0 3.06.56 4.21 1.64l3.15-3.15C17.45 2.09 14.97 1 12 1 7.7 1 3.99 3.47 2.18 7.06l3.66 2.84c.87-2.6 3.3-4.52 6.16-4.52z"
+                />
+              </svg>
+              <span>Sign In with Google Admin</span>
+            </button>
+
+            {currentUser && (
+              <button
+                onClick={handleSignOut}
+                className="w-full py-2.5 px-4 rounded-xl bg-slate-800 hover:bg-slate-700 text-slate-300 text-xs font-semibold transition-colors min-h-[44px]"
+              >
+                Sign Out & Switch Account
+              </button>
+            )}
 
             <button
               onClick={onReturnHome}
-              className="inline-flex items-center space-x-1.5 px-3 py-2 rounded-lg bg-white hover:bg-slate-50 text-slate-700 border border-slate-300 text-xs font-medium shadow-2xs transition-colors shrink-0"
+              className="w-full flex items-center justify-center space-x-1.5 py-2 text-xs text-slate-400 hover:text-white transition-colors pt-2"
             >
               <ArrowLeft className="w-3.5 h-3.5" />
-              <span>Public Site</span>
+              <span>Return to Public Website</span>
             </button>
           </div>
         </div>
+      </div>
+    );
+  }
 
-        {/* Lead Fetch Error Banner */}
-        {leadFetchError && (
-          <div className="mb-6 p-4 bg-red-50 border border-red-200 text-red-800 rounded-xl text-xs font-medium space-y-1">
-            <div className="font-bold">Firestore Lead Retrieval Note</div>
-            <div className="font-mono text-[11px] opacity-90">{leadFetchError}</div>
-          </div>
-        )}
-
-        {/* KPI Summary Metrics */}
-        <AdminKpiMetrics leads={leads} />
-
-        {/* Active View Content */}
-        {activeViewTab === 'pipeline' && (
-          <AdminPipelineBoard
-            leads={leads}
-            onSelectLead={setSelectedLead}
-            onUpdateStage={handleUpdateStage}
-          />
-        )}
-
-        {activeViewTab === 'database' && (
-          <>
-            <AdminLeadFilters
-              filters={filters}
-              onChangeFilters={setFilters}
-              onResetFilters={() => setFilters(initialFilters)}
-              totalFiltered={filteredLeads.length}
-              totalCount={leads.length}
-            />
-
-            <AdminLeadTable
-              leads={filteredLeads}
-              onSelectLead={setSelectedLead}
-              isLoading={isLoadingLeads}
-            />
-          </>
-        )}
-
-        {activeViewTab === 'followups' && (
-          <AdminFollowUpsView
-            leads={leads}
-            onSelectLead={setSelectedLead}
-          />
-        )}
-
-        {activeViewTab === 'notifications' && (
-          <AdminNotificationCenter leads={leads} />
-        )}
-
-        {activeViewTab === 'analytics' && (
-          <AdminGrowthAnalyticsView leads={leads} />
-        )}
-
-        {/* Lead Detail Slide-over / Modal */}
-        <AdminLeadDetailModal
-          lead={selectedLead}
-          onClose={() => setSelectedLead(null)}
-          onSaveLead={handleSaveLead}
+  return (
+    <div className="min-h-screen bg-slate-100 flex flex-col antialiased">
+      <div className="flex-1 flex w-full">
+        {/* Responsive Sidebar */}
+        <AdminSidebar
+          activeTab={activeTab}
+          onSelectTab={setActiveTab}
+          isOpenMobile={isOpenMobileNav}
+          onCloseMobile={() => setIsOpenMobileNav(false)}
+          isCollapsedDesktop={isCollapsedDesktop}
+          onToggleCollapseDesktop={() => setIsCollapsedDesktop(!isCollapsedDesktop)}
+          leads={leads}
+          onReturnHome={onReturnHome}
+          onOpenComingSoon={(featureName, category) => setComingSoonModal({ featureName, category })}
         />
 
-      </main>
+        {/* Main Content Workspace Column */}
+        <div className="flex-1 flex flex-col min-w-0 overflow-hidden">
+          {/* Header */}
+          <AdminHeader
+            user={currentUser}
+            activeTab={activeTab}
+            onRefresh={handleRefresh}
+            onLogout={handleSignOut}
+            onToggleMobileNav={() => setIsOpenMobileNav(!isOpenMobileNav)}
+            isOpenMobileNav={isOpenMobileNav}
+            isRefreshing={isRefreshing}
+          />
 
-      {/* Workspace Footer */}
-      <footer className="bg-white border-t border-slate-200 py-4 px-6 text-center text-[11px] text-slate-500 mt-12">
-        MK Digitalverse Sales Pipeline & Lead Management System • Confidential Internal Workspace
-      </footer>
+          {/* Main Scrollable View Area */}
+          <main className="flex-1 p-3 sm:p-5 lg:p-6 max-w-7xl w-full mx-auto space-y-6 overflow-y-auto">
+            
+            {/* Lead Fetch Error Banner */}
+            {leadFetchError && (
+              <div className="p-3 sm:p-4 bg-red-50 border border-red-200 text-red-800 rounded-xl text-xs font-medium space-y-1">
+                <div className="font-bold flex items-center space-x-1.5">
+                  <AlertOctagon className="w-4 h-4 text-red-600 shrink-0" />
+                  <span>Database Retrieval Note</span>
+                </div>
+                <div className="font-mono text-[11px] opacity-90">{leadFetchError}</div>
+              </div>
+            )}
 
+            {/* TAB 1: OVERVIEW (Operational Dashboard) */}
+            {activeTab === 'overview' && (
+              <AdminOverviewView
+                leads={leads}
+                onSelectLead={setSelectedLead}
+                onNavigateTo={setActiveTab}
+                onUpdateStage={handleUpdateStage}
+              />
+            )}
+
+            {/* TAB 2: PIPELINE BOARD & STACK */}
+            {activeTab === 'pipeline' && (
+              <AdminPipelineBoard
+                leads={leads}
+                onSelectLead={setSelectedLead}
+                onUpdateStage={handleUpdateStage}
+              />
+            )}
+
+            {/* TAB 3: LEADS DATABASE & TABLE */}
+            {activeTab === 'database' && (
+              <div className="space-y-4">
+                {exportFeedback && (
+                  <div className="p-3 sm:p-4 bg-emerald-50 border border-emerald-300 text-emerald-900 rounded-xl text-xs font-semibold flex items-center justify-between shadow-xs animate-in fade-in">
+                    <div className="flex items-center space-x-2">
+                      <CheckCircle2 className="w-4 h-4 text-emerald-600 shrink-0" />
+                      <span>{exportFeedback.message}</span>
+                    </div>
+                    <button
+                      type="button"
+                      onClick={() => setExportFeedback(null)}
+                      className="p-1 text-emerald-700 hover:text-emerald-900 rounded-md hover:bg-emerald-100 transition-colors"
+                      aria-label="Dismiss export notice"
+                    >
+                      <X className="w-3.5 h-3.5" />
+                    </button>
+                  </div>
+                )}
+
+                <AdminLeadFilters
+                  filters={filters}
+                  onChangeFilters={setFilters}
+                  onResetFilters={() => setFilters(initialFilters)}
+                  totalFiltered={filteredLeads.length}
+                  totalCount={leads.length}
+                  selectedCount={selectedLeadIds.size}
+                  onExportFiltered={handleExportFiltered}
+                  onExportAll={handleExportAll}
+                  onExportSelected={handleExportSelected}
+                />
+
+                <AdminLeadTable
+                  leads={filteredLeads}
+                  onSelectLead={setSelectedLead}
+                  isLoading={isLoadingLeads}
+                  selectedLeadIds={selectedLeadIds}
+                  onToggleSelectLead={handleToggleSelectLead}
+                  onSelectAllVisible={handleSelectAllVisible}
+                  onClearSelection={handleClearSelection}
+                  onExportSelected={handleExportSelected}
+                />
+              </div>
+            )}
+
+            {/* TAB 4: FOLLOW-UPS QUEUE */}
+            {activeTab === 'followups' && (
+              <AdminFollowUpsView
+                leads={leads}
+                onSelectLead={setSelectedLead}
+              />
+            )}
+
+            {/* TAB 5: NOTIFICATION CENTER */}
+            {activeTab === 'notifications' && (
+              <AdminNotificationCenter leads={leads} />
+            )}
+
+            {/* TAB 6: GROWTH ANALYTICS */}
+            {activeTab === 'analytics' && (
+              <AdminGrowthAnalyticsView leads={leads} />
+            )}
+
+            {/* TAB 7: CONVERSION FUNNEL (INSIGHTS) */}
+            {activeTab === 'conversion' && (
+              <div className="space-y-6">
+                <div className="bg-white p-4 sm:p-5 rounded-xl border border-slate-200 shadow-2xs">
+                  <h2 className="text-sm font-bold text-slate-900 mb-1">Conversion Funnel Diagnostics</h2>
+                  <p className="text-xs text-slate-500 mb-4">
+                    Tracking prospective healthcare partners through discovery diagnosis, proposal submission, commercial negotiation, and signed onboarding.
+                  </p>
+                  <AnalyticsFunnelCard funnel={intelligence.funnel} />
+                </div>
+                <AnalyticsDiagnosticAlerts diagnostics={intelligence.diagnostics} />
+              </div>
+            )}
+
+            {/* TAB 8: MARKETING PERFORMANCE (INSIGHTS) */}
+            {activeTab === 'marketing' && (
+              <div className="space-y-6">
+                <div className="bg-white p-4 sm:p-5 rounded-xl border border-slate-200 shadow-2xs">
+                  <h2 className="text-sm font-bold text-slate-900 mb-1">Marketing Channel Attribution</h2>
+                  <p className="text-xs text-slate-500 mb-4">
+                    CAC economics, channel yield, and pipeline conversion rates across organic, Google Ads, Meta Ads, and LinkedIn.
+                  </p>
+                  <AnalyticsChannelEconomics channels={intelligence.channels} campaigns={intelligence.campaigns} />
+                </div>
+              </div>
+            )}
+
+            {/* TAB 9: SALES REPORTS (REPORTS) */}
+            {activeTab === 'sales_reports' && (
+              <AdminSalesReportsView leads={leads} />
+            )}
+
+            {/* TAB 10: REVENUE REPORTS (REPORTS) */}
+            {activeTab === 'revenue_reports' && (
+              <div className="space-y-6">
+                <div className="grid grid-cols-1 sm:grid-cols-3 gap-4">
+                  <div className="p-4 bg-white rounded-xl border border-slate-200 shadow-2xs">
+                    <span className="text-[10px] font-bold text-slate-500 uppercase tracking-wider block mb-1">
+                      ACTIVE PIPELINE VALUE
+                    </span>
+                    <span className="text-2xl font-bold font-mono text-slate-900">
+                      ${intelligence.revenue.activePipelineValue.toLocaleString()}
+                    </span>
+                    <span className="text-xs text-slate-500 block mt-1">Across all open opportunities</span>
+                  </div>
+
+                  <div className="p-4 bg-white rounded-xl border border-amber-200 shadow-2xs">
+                    <span className="text-[10px] font-bold text-amber-700 uppercase tracking-wider block mb-1">
+                      WEIGHTED REVENUE POTENTIAL
+                    </span>
+                    <span className="text-2xl font-bold font-mono text-amber-900">
+                      ${intelligence.revenue.weightedPipelineValue.toLocaleString()}
+                    </span>
+                    <span className="text-xs text-amber-700/80 block mt-1">Probability adjusted forecast</span>
+                  </div>
+
+                  <div className="p-4 bg-white rounded-xl border border-teal-200 shadow-2xs">
+                    <span className="text-[10px] font-bold text-teal-700 uppercase tracking-wider block mb-1">
+                      CLOSED WON REVENUE
+                    </span>
+                    <span className="text-2xl font-bold font-mono text-teal-900">
+                      ${intelligence.revenue.wonRevenueValue.toLocaleString()}
+                    </span>
+                    <span className="text-xs text-teal-700 block mt-1">
+                      {intelligence.funnel.wonCount} signed client partner retainers
+                    </span>
+                  </div>
+                </div>
+
+                <div className="bg-white p-4 sm:p-5 rounded-xl border border-slate-200 shadow-2xs">
+                  <h3 className="text-sm font-bold text-slate-900 mb-3">Specialty Segment Revenue Breakdown</h3>
+                  <AnalyticsSegmentMatrix segments={intelligence.segments} />
+                </div>
+              </div>
+            )}
+
+            {/* TAB 11: LEAD REPORTS (REPORTS) */}
+            {activeTab === 'lead_reports' && (
+              <AdminLeadReportsView leads={leads} />
+            )}
+
+            {/* Lead Detail Slide-over / Modal */}
+            <AdminLeadDetailModal
+              lead={selectedLead}
+              onClose={() => setSelectedLead(null)}
+              onSaveLead={handleSaveLead}
+            />
+
+          </main>
+
+          {/* Workspace Footer */}
+          <footer className="bg-white border-t border-slate-200 py-3.5 px-4 sm:px-6 text-center text-[11px] text-slate-500 shrink-0">
+            MK Digitalverse Sales Pipeline & Lead Intelligence System • Confidential Executive Workspace
+          </footer>
+        </div>
+      </div>
+
+      {/* ROADMAP / COMING SOON MODAL (For unintegrated communication & financial modules) */}
+      {comingSoonModal && (
+        <div className="fixed inset-0 z-50 bg-slate-950/60 backdrop-blur-xs flex items-center justify-center p-4">
+          <div className="max-w-md w-full bg-white rounded-2xl p-6 shadow-2xl border border-slate-200 space-y-4 animate-in fade-in zoom-in-95 duration-150">
+            <div className="flex items-start justify-between">
+              <div className="flex items-center space-x-2">
+                <div className="w-9 h-9 rounded-xl bg-amber-500/10 text-amber-700 flex items-center justify-center">
+                  <Sparkles className="w-5 h-5" />
+                </div>
+                <div>
+                  <span className="text-[10px] font-mono uppercase font-bold text-amber-700 tracking-wider">
+                    {comingSoonModal.category}
+                  </span>
+                  <h3 className="text-base font-bold text-slate-900">
+                    {comingSoonModal.featureName}
+                  </h3>
+                </div>
+              </div>
+
+              <button
+                type="button"
+                onClick={() => setComingSoonModal(null)}
+                className="p-1.5 text-slate-400 hover:text-slate-600 rounded-lg hover:bg-slate-100 transition-colors"
+                aria-label="Close dialog"
+              >
+                <X className="w-5 h-5" />
+              </button>
+            </div>
+
+            <div className="bg-slate-50 rounded-xl p-3.5 border border-slate-200/80 text-xs text-slate-600 space-y-2">
+              <div className="flex items-center space-x-1.5 font-bold text-slate-800">
+                <Clock className="w-3.5 h-3.5 text-amber-600" />
+                <span>Scheduled for Implementation (ADM-03)</span>
+              </div>
+              <p>
+                The <strong>{comingSoonModal.featureName}</strong> system is mapped in the MK Digitalverse CRM architecture. Core underlying data pipelines and secure webhooks are ready to connect in the upcoming deployment phase.
+              </p>
+            </div>
+
+            <div className="flex justify-end pt-1">
+              <button
+                type="button"
+                onClick={() => setComingSoonModal(null)}
+                className="px-4 py-2 bg-slate-900 hover:bg-slate-800 text-white text-xs font-bold rounded-lg transition-colors min-h-[40px]"
+              >
+                Got it
+              </button>
+            </div>
+          </div>
+        </div>
+      )}
     </div>
   );
 };
-

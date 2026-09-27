@@ -139,7 +139,8 @@ export const AdminFollowUpsView: React.FC<AdminFollowUpsViewProps> = ({
       const nowIso = new Date().toISOString();
       await adminLeadsService.updateLead(lead.leadId, {
         lastContactedAt: nowIso,
-        status: lead.status === 'new' ? 'contacted' : lead.status
+        status: lead.status === 'new' ? 'contacted' : lead.status,
+        opportunityStage: lead.qualification.opportunityStage === 'new' ? 'contacted' : lead.qualification.opportunityStage
       });
       await adminLeadsService.addActivity(lead.leadId, {
         type: 'contact_made',

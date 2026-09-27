@@ -37,19 +37,23 @@ import {
   Activity,
   Plus,
   Send,
-  History
+  History,
+  Share2,
+  Navigation
 } from 'lucide-react';
 
 interface AdminLeadDetailModalProps {
   lead: CompleteLeadRecord | null;
   onClose: () => void;
   onSaveLead: (leadId: string, updates: any) => Promise<void>;
+  onConvertToClient?: (lead: CompleteLeadRecord) => void;
 }
 
 export const AdminLeadDetailModal: React.FC<AdminLeadDetailModalProps> = ({
   lead,
   onClose,
-  onSaveLead
+  onSaveLead,
+  onConvertToClient
 }) => {
   if (!lead) return null;
 
@@ -151,8 +155,18 @@ export const AdminLeadDetailModal: React.FC<AdminLeadDetailModalProps> = ({
       (err) => console.warn('Activities subcollection subscription error:', err)
     );
 
-    return () => unsub();
-  }, [lead]);
+    const handleKeyDown = (e: KeyboardEvent) => {
+      if (e.key === 'Escape') {
+        onClose();
+      }
+    };
+    window.addEventListener('keydown', handleKeyDown);
+
+    return () => {
+      unsub();
+      window.removeEventListener('keydown', handleKeyDown);
+    };
+  }, [lead, onClose]);
 
   const handleSave = async () => {
     setIsSaving(true);
@@ -375,13 +389,13 @@ export const AdminLeadDetailModal: React.FC<AdminLeadDetailModalProps> = ({
         </div>
 
         {/* Scrollable Body */}
-        <div className="flex-1 overflow-y-auto p-6 space-y-6 text-slate-800">
+        <div className="flex-1 overflow-y-auto p-4 sm:p-6 space-y-6 text-slate-800">
 
           {/* Feedback Banners */}
           {saveSuccess && (
             <div className="p-3 bg-emerald-50 border border-emerald-200 text-emerald-800 rounded-lg text-xs font-medium flex items-center space-x-2">
               <CheckCircle2 className="w-4 h-4 text-emerald-600 shrink-0" />
-              <span>Opportunity record updated successfully in Firestore database.</span>
+              <span>Opportunity record updated successfully in database.</span>
             </div>
           )}
 
@@ -443,7 +457,7 @@ export const AdminLeadDetailModal: React.FC<AdminLeadDetailModalProps> = ({
                 className="px-2.5 py-1.5 bg-rose-500/20 hover:bg-rose-500/30 text-rose-300 border border-rose-500/30 rounded-lg font-medium transition-colors flex items-center space-x-1"
               >
                 <Handshake className="w-3.5 h-3.5" />
-                <span>Negotiation</span>
+                <span>Negotiations</span>
               </button>
 
               <button
@@ -946,25 +960,25 @@ export const AdminLeadDetailModal: React.FC<AdminLeadDetailModalProps> = ({
             </div>
           </div>
 
-          {/* SECTION A — CONTACT DETAILS */}
+          {/* SECTION A — CONTACT & ORGANIZATION */}
           <div className="bg-slate-50 rounded-xl p-4 border border-slate-200 space-y-3">
             <div className="flex items-center space-x-2 border-b border-slate-200 pb-2">
               <User className="w-4 h-4 text-slate-600" />
-              <h3 className="text-xs font-bold uppercase tracking-wider text-slate-700">Original Visitor Profile</h3>
+              <h3 className="text-xs font-bold uppercase tracking-wider text-slate-700">Contact & Organization</h3>
             </div>
-            <div className="grid grid-cols-1 sm:grid-cols-3 gap-3 text-xs">
+            <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-3 gap-3 text-xs">
               <div>
-                <span className="text-slate-400 block text-[10px]">Contact Name</span>
+                <span className="text-slate-400 block text-[10px] uppercase font-semibold">Name</span>
                 <span className="font-semibold text-slate-900">{lead.visitorData.contactName}</span>
               </div>
               <div>
-                <span className="text-slate-400 block text-[10px]">Email Address</span>
+                <span className="text-slate-400 block text-[10px] uppercase font-semibold">Email</span>
                 <a href={`mailto:${lead.visitorData.email}`} className="text-amber-700 font-mono hover:underline truncate block">
                   {lead.visitorData.email}
                 </a>
               </div>
               <div>
-                <span className="text-slate-400 block text-[10px]">Phone Number</span>
+                <span className="text-slate-400 block text-[10px] uppercase font-semibold">Phone</span>
                 {lead.visitorData.phone ? (
                   <a href={`tel:${lead.visitorData.phone}`} className="text-slate-800 font-mono hover:underline">
                     {lead.visitorData.phone}
@@ -973,30 +987,12 @@ export const AdminLeadDetailModal: React.FC<AdminLeadDetailModalProps> = ({
                   <span className="text-slate-400 italic">Not provided</span>
                 )}
               </div>
-            </div>
-          </div>
-
-          {/* SECTION B — ORGANIZATION PROFILE */}
-          <div className="bg-slate-50 rounded-xl p-4 border border-slate-200 space-y-3">
-            <div className="flex items-center space-x-2 border-b border-slate-200 pb-2">
-              <Building2 className="w-4 h-4 text-slate-600" />
-              <h3 className="text-xs font-bold uppercase tracking-wider text-slate-700">Organization Profile</h3>
-            </div>
-            <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-4 gap-3 text-xs">
               <div>
-                <span className="text-slate-400 block text-[10px]">Organization Name</span>
+                <span className="text-slate-400 block text-[10px] uppercase font-semibold">Organization</span>
                 <span className="font-semibold text-slate-900">{lead.visitorData.organizationName || 'N/A'}</span>
               </div>
               <div>
-                <span className="text-slate-400 block text-[10px]">Healthcare Category</span>
-                <span className="font-medium text-slate-800">{lead.visitorData.healthcareCategory || 'Healthcare'}</span>
-              </div>
-              <div>
-                <span className="text-slate-400 block text-[10px]">Location</span>
-                <span className="text-slate-800">{lead.visitorData.location || 'N/A'}</span>
-              </div>
-              <div>
-                <span className="text-slate-400 block text-[10px]">Website</span>
+                <span className="text-slate-400 block text-[10px] uppercase font-semibold">Website</span>
                 {lead.visitorData.website ? (
                   <a
                     href={lead.visitorData.website.startsWith('http') ? lead.visitorData.website : `https://${lead.visitorData.website}`}
@@ -1010,16 +1006,63 @@ export const AdminLeadDetailModal: React.FC<AdminLeadDetailModalProps> = ({
                   <span className="text-slate-400 italic">Not provided</span>
                 )}
               </div>
+              <div>
+                <span className="text-slate-400 block text-[10px] uppercase font-semibold">Location</span>
+                <span className="text-slate-800">{lead.visitorData.location || 'N/A'}</span>
+              </div>
             </div>
           </div>
 
-          {/* SECTION C — GROWTH NEED & CHALLENGES */}
+          {/* SECTION B — QUALIFICATION */}
           <div className="bg-slate-50 rounded-xl p-4 border border-slate-200 space-y-3">
             <div className="flex items-center space-x-2 border-b border-slate-200 pb-2">
-              <FileText className="w-4 h-4 text-slate-600" />
-              <h3 className="text-xs font-bold uppercase tracking-wider text-slate-700">Enquiry Intent & Objectives</h3>
+              <ShieldCheck className="w-4 h-4 text-emerald-600" />
+              <h3 className="text-xs font-bold uppercase tracking-wider text-slate-700">Qualification & Strategic Fit</h3>
             </div>
-            <div className="space-y-3 text-xs">
+            
+            <div className="grid grid-cols-2 sm:grid-cols-4 gap-3 text-xs bg-white p-3 rounded-lg border border-slate-200">
+              <div>
+                <span className="text-slate-400 block text-[10px] uppercase font-semibold">Fit Status</span>
+                <span className="font-bold text-slate-800 capitalize font-mono">
+                  {lead.qualification.fitStatus.replace('_', ' ')}
+                </span>
+              </div>
+              <div>
+                <span className="text-slate-400 block text-[10px] uppercase font-semibold">Fit Score</span>
+                <span className="font-bold text-emerald-700 font-mono text-sm">
+                  {lead.qualification.fitScore}/100
+                </span>
+              </div>
+              <div>
+                <span className="text-slate-400 block text-[10px] uppercase font-semibold">Intent Level</span>
+                <span className="font-bold text-slate-800 capitalize font-mono">
+                  {lead.qualification.intentLevel}
+                </span>
+              </div>
+              <div>
+                <span className="text-slate-400 block text-[10px] uppercase font-semibold">Priority</span>
+                <span className="font-bold text-amber-700 uppercase font-mono">
+                  {lead.qualification.leadPriority}
+                </span>
+              </div>
+            </div>
+
+            <div className="grid grid-cols-1 sm:grid-cols-2 gap-3 text-xs">
+              <div>
+                <span className="text-slate-400 block text-[10px] uppercase font-semibold">Healthcare Category</span>
+                <span className="font-medium text-slate-900 block mt-0.5">
+                  {lead.visitorData.healthcareCategory || 'Healthcare Business'}
+                </span>
+              </div>
+              <div>
+                <span className="text-slate-400 block text-[10px] uppercase font-semibold">Investment Readiness</span>
+                <span className="font-medium text-slate-900 block mt-0.5">
+                  {lead.visitorData.investmentReadiness || 'Growth partner investment ready'}
+                </span>
+              </div>
+            </div>
+
+            <div className="space-y-2.5 text-xs pt-1">
               <div>
                 <span className="text-slate-400 block text-[10px] uppercase font-semibold">Biggest Challenge</span>
                 <p className="text-slate-800 bg-white p-2.5 rounded border border-slate-200 leading-relaxed mt-0.5">
@@ -1053,18 +1096,103 @@ export const AdminLeadDetailModal: React.FC<AdminLeadDetailModalProps> = ({
             />
           </div>
 
+          {/* SECTION E — MARKETING ATTRIBUTION & CAMPAIGN DATA */}
+          <div className="bg-slate-50 rounded-xl p-4 border border-slate-200 space-y-3">
+            <div className="flex items-center space-x-2 border-b border-slate-200 pb-2">
+              <Share2 className="w-4 h-4 text-slate-600" />
+              <h3 className="text-xs font-bold uppercase tracking-wider text-slate-700">Marketing Attribution</h3>
+            </div>
+            <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-4 gap-3 text-xs">
+              <div>
+                <span className="text-slate-400 block text-[10px] uppercase font-semibold">Derived Source</span>
+                <span className="font-semibold text-slate-900 capitalize">
+                  {(lead.qualification.derivedLeadSource || 'direct').replace('_', ' ')}
+                </span>
+              </div>
+              <div>
+                <span className="text-slate-400 block text-[10px] uppercase font-semibold">Campaign</span>
+                <span className="text-slate-800 font-mono">
+                  {lead.visitorData.utm_campaign || <span className="text-slate-400 italic">None</span>}
+                </span>
+              </div>
+              <div>
+                <span className="text-slate-400 block text-[10px] uppercase font-semibold">Medium / Channel</span>
+                <span className="text-slate-800 font-mono">
+                  {lead.visitorData.utm_medium || <span className="text-slate-400 italic">None</span>}
+                </span>
+              </div>
+              <div>
+                <span className="text-slate-400 block text-[10px] uppercase font-semibold">UTM Source</span>
+                <span className="text-slate-800 font-mono">
+                  {lead.visitorData.utm_source || <span className="text-slate-400 italic">None</span>}
+                </span>
+              </div>
+            </div>
+
+            {(lead.visitorData.landingPage || lead.visitorData.referrer || lead.visitorData.utm_term || lead.visitorData.utm_content) && (
+              <div className="pt-2 border-t border-slate-200/60 grid grid-cols-1 sm:grid-cols-2 gap-3 text-xs">
+                {lead.visitorData.landingPage && (
+                  <div>
+                    <span className="text-slate-400 block text-[10px] uppercase font-semibold">Landing Page</span>
+                    <span className="text-slate-700 font-mono text-[11px] truncate block">
+                      {lead.visitorData.landingPage}
+                    </span>
+                  </div>
+                )}
+                {lead.visitorData.referrer && (
+                  <div>
+                    <span className="text-slate-400 block text-[10px] uppercase font-semibold">Referrer URL</span>
+                    <span className="text-slate-700 font-mono text-[11px] truncate block">
+                      {lead.visitorData.referrer}
+                    </span>
+                  </div>
+                )}
+                {lead.visitorData.utm_term && (
+                  <div>
+                    <span className="text-slate-400 block text-[10px] uppercase font-semibold">Search Term</span>
+                    <span className="text-slate-700 font-mono text-[11px]">
+                      {lead.visitorData.utm_term}
+                    </span>
+                  </div>
+                )}
+                {lead.visitorData.utm_content && (
+                  <div>
+                    <span className="text-slate-400 block text-[10px] uppercase font-semibold">Ad Content</span>
+                    <span className="text-slate-700 font-mono text-[11px]">
+                      {lead.visitorData.utm_content}
+                    </span>
+                  </div>
+                )}
+              </div>
+            )}
+          </div>
+
         </div>
 
         {/* Modal Footer / Save Action */}
-        <div className="bg-slate-100 p-4 border-t border-slate-200 flex items-center justify-between shrink-0">
-          <div className="text-xs text-slate-500">
-            Created: <strong>{new Date(lead.createdAt).toLocaleString()}</strong>
+        <div className="bg-slate-100 p-3 sm:p-4 border-t border-slate-200 flex flex-col sm:flex-row items-stretch sm:items-center justify-between gap-3 shrink-0">
+          <div className="text-xs text-slate-500 font-mono text-center sm:text-left">
+            Created: <strong>{new Date(lead.createdAt).toLocaleDateString()}</strong>
           </div>
-          <div className="flex items-center space-x-3">
+          <div className="flex items-center space-x-2.5 sm:space-x-3">
+            {onConvertToClient && (
+              <button
+                type="button"
+                onClick={() => {
+                  onClose();
+                  onConvertToClient(lead);
+                }}
+                className="px-3.5 py-2.5 rounded-lg bg-emerald-600 hover:bg-emerald-700 text-white text-xs font-semibold shadow-xs transition-colors min-h-[44px] flex items-center space-x-1.5"
+                title="Create a commercial client account from this lead"
+              >
+                <Building2 className="w-3.5 h-3.5" />
+                <span>Convert to Client</span>
+              </button>
+            )}
             <button
               type="button"
               onClick={onClose}
-              className="px-4 py-2 rounded-lg bg-slate-200 hover:bg-slate-300 text-slate-700 text-xs font-medium transition-colors"
+              className="flex-1 sm:flex-initial px-4 py-2.5 rounded-lg bg-slate-200 hover:bg-slate-300 text-slate-700 text-xs font-semibold transition-colors min-h-[44px] flex items-center justify-center"
             >
               Cancel
             </button>
@@ -1072,10 +1200,10 @@ export const AdminLeadDetailModal: React.FC<AdminLeadDetailModalProps> = ({
               type="button"
               onClick={handleSave}
               disabled={isSaving}
-              className="inline-flex items-center space-x-2 px-5 py-2 rounded-lg bg-amber-600 hover:bg-amber-700 text-white text-xs font-bold shadow-md transition-colors disabled:opacity-50"
+              className="flex-1 sm:flex-initial inline-flex items-center justify-center space-x-2 px-5 py-2.5 rounded-lg bg-amber-600 hover:bg-amber-700 text-white text-xs font-bold shadow-md transition-colors disabled:opacity-50 min-h-[44px]"
             >
               <Save className={`w-4 h-4 ${isSaving ? 'animate-spin' : ''}`} />
-              <span>{isSaving ? 'Saving...' : 'Save Opportunity Record'}</span>
+              <span>{isSaving ? 'Saving...' : 'Save Record'}</span>
             </button>
           </div>
         </div>
