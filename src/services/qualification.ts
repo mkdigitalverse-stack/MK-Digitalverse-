@@ -67,7 +67,7 @@ export type ChallengeCategory =
   | 'strategy' 
   | 'multiple';
 
-export type OpportunityStage = 'new' | 'contacted' | 'qualified' | 'discovery' | 'proposal' | 'negotiation' | 'won' | 'lost' | 'none';
+export type OpportunityStage = 'new' | 'contacted' | 'qualified' | 'discovery' | 'proposal' | 'negotiations' | 'won' | 'lost';
 export type DerivedLeadSource = 'organic' | 'google_ads' | 'meta_ads' | 'linkedin' | 'direct' | 'referral' | 'unknown';
 
 export type ProposalStatus = 'not_started' | 'draft' | 'sent' | 'viewed' | 'revision_requested' | 'accepted' | 'declined';
@@ -79,10 +79,9 @@ export const STAGE_PROBABILITIES: Record<string, number> = {
   qualified: 0.25,
   discovery: 0.40,
   proposal: 0.65,
-  negotiation: 0.80,
+  negotiations: 0.80,
   won: 1.00,
-  lost: 0.00,
-  none: 0.05
+  lost: 0.00
 };
 
 // 3. INTERNAL QUALIFICATION DATA INTERFACE
@@ -149,7 +148,7 @@ export interface InternalQualificationData {
 export interface CompleteLeadRecord {
   // System Metadata
   leadId: string;
-  status: 'new' | 'contacted' | 'qualified' | 'proposal' | 'won' | 'lost';
+  status: OpportunityStage;
   createdAt: string;
   updatedAt: string;
   notificationStatus?: 'pending' | 'sent' | 'failed';
@@ -385,7 +384,7 @@ export class QualificationEngine {
       challengeCategory,
       fitScore: totalScore,
       derivedLeadSource,
-      opportunityStage: 'none'
+      opportunityStage: 'new'
     };
   }
 }

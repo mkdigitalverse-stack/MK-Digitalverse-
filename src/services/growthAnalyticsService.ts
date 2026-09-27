@@ -207,19 +207,19 @@ export class GrowthAnalyticsService {
     const qualifiedLeads = leads.filter(l => 
       l.qualification.fitStatus === 'high_fit' || 
       l.qualification.fitStatus === 'medium_fit' ||
-      ['qualified', 'discovery', 'proposal', 'negotiation', 'won'].includes(l.qualification.opportunityStage || '')
+      ['qualified', 'discovery', 'proposal', 'negotiations', 'won'].includes(l.qualification.opportunityStage || '')
     ).length;
 
     const discoveryCount = leads.filter(l => 
-      ['discovery', 'proposal', 'negotiation', 'won'].includes(l.qualification.opportunityStage || '')
+      ['discovery', 'proposal', 'negotiations', 'won'].includes(l.qualification.opportunityStage || '')
     ).length;
 
     const opportunityCount = leads.filter(l => 
-      ['qualified', 'discovery', 'proposal', 'negotiation', 'won'].includes(l.qualification.opportunityStage || '')
+      ['qualified', 'discovery', 'proposal', 'negotiations', 'won'].includes(l.qualification.opportunityStage || '')
     ).length;
 
     const proposalCount = leads.filter(l => 
-      ['proposal', 'negotiation', 'won'].includes(l.qualification.opportunityStage || '')
+      ['proposal', 'negotiations', 'won'].includes(l.qualification.opportunityStage || '')
     ).length;
 
     const wonCount = leads.filter(l => l.qualification.opportunityStage === 'won').length;
@@ -239,7 +239,7 @@ export class GrowthAnalyticsService {
       { key: 'qualified', name: 'Qualified Opportunities' },
       { key: 'discovery', name: 'Discovery Diagnoses' },
       { key: 'proposal', name: 'Proposals Submitted' },
-      { key: 'negotiation', name: 'In Negotiation' },
+      { key: 'negotiations', name: 'In Negotiation' },
       { key: 'won', name: 'Closed Won Clients' }
     ];
 
@@ -298,7 +298,7 @@ export class GrowthAnalyticsService {
   public static calculateRevenue(leads: CompleteLeadRecord[]): RevenueMetricsSummary {
     const activeLeads = leads.filter(l => l.qualification.opportunityStage !== 'won' && l.qualification.opportunityStage !== 'lost');
     const wonLeads = leads.filter(l => l.qualification.opportunityStage === 'won');
-    const proposalLeads = leads.filter(l => l.qualification.opportunityStage === 'proposal' || l.qualification.opportunityStage === 'negotiation');
+    const proposalLeads = leads.filter(l => l.qualification.opportunityStage === 'proposal' || l.qualification.opportunityStage === 'negotiations');
 
     const activePipelineValue = activeLeads.reduce((sum, l) => sum + (l.qualification.estimatedOpportunityValue || 0), 0);
     const weightedPipelineValue = activeLeads.reduce((sum, l) => sum + (l.qualification.weightedPipelineValue || 0), 0);
@@ -335,11 +335,11 @@ export class GrowthAnalyticsService {
       const qualifiedLeads = channelLeads.filter(l => 
         l.qualification.fitStatus === 'high_fit' || 
         l.qualification.fitStatus === 'medium_fit' ||
-        ['qualified', 'discovery', 'proposal', 'negotiation', 'won'].includes(l.qualification.opportunityStage || '')
+        ['qualified', 'discovery', 'proposal', 'negotiations', 'won'].includes(l.qualification.opportunityStage || '')
       ).length;
 
       const opportunitiesCount = channelLeads.filter(l => 
-        ['qualified', 'discovery', 'proposal', 'negotiation', 'won'].includes(l.qualification.opportunityStage || '')
+        ['qualified', 'discovery', 'proposal', 'negotiations', 'won'].includes(l.qualification.opportunityStage || '')
       ).length;
 
       const wonLeads = channelLeads.filter(l => l.qualification.opportunityStage === 'won');
@@ -395,12 +395,12 @@ export class GrowthAnalyticsService {
       const qualifiedLeads = segLeads.filter(l => 
         l.qualification.fitStatus === 'high_fit' || 
         l.qualification.fitStatus === 'medium_fit' ||
-        ['qualified', 'discovery', 'proposal', 'negotiation', 'won'].includes(l.qualification.opportunityStage || '')
+        ['qualified', 'discovery', 'proposal', 'negotiations', 'won'].includes(l.qualification.opportunityStage || '')
       ).length;
 
-      const discoveryCount = segLeads.filter(l => ['discovery', 'proposal', 'negotiation', 'won'].includes(l.qualification.opportunityStage || '')).length;
-      const opportunityCount = segLeads.filter(l => ['qualified', 'discovery', 'proposal', 'negotiation', 'won'].includes(l.qualification.opportunityStage || '')).length;
-      const proposalCount = segLeads.filter(l => ['proposal', 'negotiation', 'won'].includes(l.qualification.opportunityStage || '')).length;
+      const discoveryCount = segLeads.filter(l => ['discovery', 'proposal', 'negotiations', 'won'].includes(l.qualification.opportunityStage || '')).length;
+      const opportunityCount = segLeads.filter(l => ['qualified', 'discovery', 'proposal', 'negotiations', 'won'].includes(l.qualification.opportunityStage || '')).length;
+      const proposalCount = segLeads.filter(l => ['proposal', 'negotiations', 'won'].includes(l.qualification.opportunityStage || '')).length;
       
       const wonLeads = segLeads.filter(l => l.qualification.opportunityStage === 'won');
       const lostCount = segLeads.filter(l => l.qualification.opportunityStage === 'lost').length;
@@ -465,7 +465,7 @@ export class GrowthAnalyticsService {
 
       const isQualified = lead.qualification.fitStatus === 'high_fit' || 
         lead.qualification.fitStatus === 'medium_fit' ||
-        ['qualified', 'discovery', 'proposal', 'negotiation', 'won'].includes(lead.qualification.opportunityStage || '');
+        ['qualified', 'discovery', 'proposal', 'negotiations', 'won'].includes(lead.qualification.opportunityStage || '');
 
       if (isQualified) item.qualifiedLeads += 1;
 

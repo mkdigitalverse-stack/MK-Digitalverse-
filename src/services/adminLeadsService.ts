@@ -34,6 +34,7 @@ export interface LeadActivity {
     | 'discovery_completed' 
     | 'audit_completed' 
     | 'proposal_sent' 
+    | 'negotiations' 
     | 'negotiation' 
     | 'follow_up' 
     | 'follow_up_scheduled' 
@@ -241,11 +242,10 @@ class AdminLeadsService {
     // Evaluate default qualification on-the-fly if missing
     const defaultEval = QualificationEngine.evaluateLead(visitorData);
 
-    const rawOppCandidate = raw.opportunity_stage ?? raw.opportunityStage ?? raw.stage ?? raw.status;
-    const normalizedStage = typeof rawOppCandidate === 'string'
-      ? rawOppCandidate.toLowerCase().trim()
-      : '';
-    const VALID_STAGES: OpportunityStage[] = ['new', 'contacted', 'qualified', 'discovery', 'proposal', 'negotiation', 'won', 'lost'];
+    // 1:1 mapping: public.leads.status is the single source of truth for the pipeline stage
+    const rawStatus = String(raw.status || 'new').toLowerCase().trim();
+    const normalizedStage = rawStatus === 'negotiation' ? 'negotiations' : rawStatus;
+    const VALID_STAGES: OpportunityStage[] = ['new', 'contacted', 'qualified', 'discovery', 'proposal', 'negotiations', 'won', 'lost'];
     const opportunityStage: OpportunityStage = VALID_STAGES.includes(normalizedStage as OpportunityStage)
       ? (normalizedStage as OpportunityStage)
       : 'new';
@@ -253,19 +253,8 @@ class AdminLeadsService {
     const estValRaw = raw.estimated_opportunity_value ?? raw.estimatedOpportunityValue;
     const estVal = typeof estValRaw === 'number' ? estValRaw : (estValRaw !== undefined && estValRaw !== null && !isNaN(Number(estValRaw)) ? Number(estValRaw) : undefined);
 
-    const rawProb = raw.stage_probability ?? raw.stageProbability;
-    const prob = typeof rawProb === 'number'
-      ? rawProb
-      : (rawProb !== undefined && rawProb !== null && !isNaN(Number(rawProb))
-          ? Number(rawProb)
-          : (STAGE_PROBABILITIES[opportunityStage] ?? 0.05));
-
-    const rawWeighted = raw.weighted_pipeline_value ?? raw.weightedPipelineValue;
-    const weightedVal = typeof rawWeighted === 'number' 
-      ? rawWeighted 
-      : (rawWeighted !== undefined && rawWeighted !== null && !isNaN(Number(rawWeighted))
-          ? Number(rawWeighted)
-          : (estVal !== undefined ? Math.round(estVal * prob) : undefined));
+    const prob = STAGE_PROBABILITIES[opportunityStage] ?? 0.05;
+    const weightedVal = estVal !== undefined ? Math.round(estVal * prob) : undefined;
 
     const fitScoreRaw = raw.fit_score ?? raw.fitScore;
     const fitScore = typeof fitScoreRaw === 'number' ? fitScoreRaw : (fitScoreRaw !== undefined && fitScoreRaw !== null && !isNaN(Number(fitScoreRaw)) ? Number(fitScoreRaw) : defaultEval.fitScore);
@@ -323,11 +312,7 @@ class AdminLeadsService {
       lostNotes: raw.lost_notes ?? raw.lostNotes ?? undefined
     };
 
-    const rawStatusNormalized = typeof raw.status === 'string' ? raw.status.toLowerCase().trim() : '';
-    const VALID_STATUSES: CompleteLeadRecord['status'][] = ['new', 'contacted', 'qualified', 'proposal', 'won', 'lost'];
-    const status: CompleteLeadRecord['status'] = VALID_STATUSES.includes(rawStatusNormalized as CompleteLeadRecord['status'])
-      ? (rawStatusNormalized as CompleteLeadRecord['status'])
-      : (VALID_STATUSES.includes(opportunityStage as any) ? (opportunityStage as CompleteLeadRecord['status']) : 'new');
+    const status: CompleteLeadRecord['status'] = opportunityStage as CompleteLeadRecord['status'];
 
     return {
       leadId,
@@ -424,156 +409,126 @@ class AdminLeadsService {
   public async updateLead(
     leadId: string,
     updates: Partial<InternalQualificationData> & { status?: CompleteLeadRecord['status'] }
-  ): Promise<void> {
+  ): Promise<CompleteLeadRecord> {
     if (!supabase) {
       throw new Error('Supabase client is not configured.');
     }
 
+    if (!leadId) {
+      throw new Error('Lead ID is required for update.');
+    }
+
+    const VALID_STAGES: OpportunityStage[] = [
+      'new',
+      'contacted',
+      'qualified',
+      'discovery',
+      'proposal',
+      'negotiations',
+      'won',
+      'lost'
+    ];
+
+    // 1. Determine and validate target stage if provided
+    let targetStage: OpportunityStage | undefined = undefined;
+    const stageCandidate = updates.opportunityStage || updates.status;
+    if (stageCandidate) {
+      const raw = String(stageCandidate).toLowerCase().trim();
+      const normalized = raw === 'negotiation' ? 'negotiations' : raw;
+      if (!VALID_STAGES.includes(normalized as OpportunityStage)) {
+        throw new Error(`Invalid stage "${stageCandidate}". Valid stages are: ${VALID_STAGES.join(', ')}`);
+      }
+      targetStage = normalized as OpportunityStage;
+    }
+
     const timestamp = new Date().toISOString();
+
+    // 2. Map payload: public.leads.status is the SINGLE SOURCE OF TRUTH in the database.
+    // Send ONLY real columns existing on public.leads.
+    // DO NOT include opportunity_stage, stage_changed_at, stage_entered_at,
+    // stage_probability, estimated_opportunity_value, or weighted_pipeline_value.
     const mappedPayload: Record<string, any> = {
       updated_at: timestamp
     };
 
-    if (updates.status !== undefined) mappedPayload.status = updates.status;
-    if (updates.fitStatus !== undefined) mappedPayload.fit_status = updates.fitStatus;
-    if (updates.leadPriority !== undefined) mappedPayload.lead_priority = updates.leadPriority;
-    if (updates.intentLevel !== undefined) mappedPayload.intent_level = updates.intentLevel;
-    if (updates.growthStage !== undefined) mappedPayload.growth_stage = updates.growthStage;
-    if (updates.assignedTo !== undefined) mappedPayload.assigned_to = updates.assignedTo;
-    if (updates.nextFollowUpAt !== undefined) mappedPayload.next_follow_up_at = updates.nextFollowUpAt;
-    if (updates.lastContactedAt !== undefined) mappedPayload.last_contacted_at = updates.lastContactedAt;
-    if (updates.internalNotes !== undefined) mappedPayload.internal_notes = updates.internalNotes;
-    if (updates.qualificationReviewedAt !== undefined) mappedPayload.qualification_reviewed_at = updates.qualificationReviewedAt;
-    if (typeof updates.fitScore === 'number') mappedPayload.fit_score = updates.fitScore;
-
-    // Normalize target stage if provided
-    const targetStage: OpportunityStage | undefined = updates.opportunityStage
-      ? (typeof updates.opportunityStage === 'string'
-          ? (updates.opportunityStage as string).toLowerCase().trim() as OpportunityStage
-          : updates.opportunityStage)
-      : undefined;
-
-    // F-06 Pipeline & Sales Updates
     if (targetStage !== undefined) {
-      mappedPayload.opportunity_stage = targetStage;
-      mappedPayload.stage_changed_at = timestamp;
-      if (!updates.stageEnteredAt) {
-        mappedPayload.stage_entered_at = timestamp;
-      }
-      const stageProb = updates.stageProbability ?? (STAGE_PROBABILITIES[targetStage] ?? 0.05);
-      mappedPayload.stage_probability = stageProb;
-
-      // Sync status with opportunity stage ensuring database constraints are respected
-      if (['new', 'contacted', 'qualified', 'proposal', 'won', 'lost'].includes(targetStage)) {
-        mappedPayload.status = targetStage;
-      } else if (targetStage === 'discovery') {
-        mappedPayload.status = 'qualified';
-      } else if (targetStage === 'negotiation') {
-        mappedPayload.status = 'proposal';
-      }
-    } else if (updates.status !== undefined) {
-      const normalizedStatus = updates.status.toLowerCase().trim();
-      if (['new', 'contacted', 'qualified', 'proposal', 'won', 'lost'].includes(normalizedStatus)) {
-        mappedPayload.opportunity_stage = normalizedStatus;
-      }
+      // 1:1 mapping directly into public.leads.status
+      mappedPayload.status = targetStage;
     }
-
-    if (updates.estimatedOpportunityValue !== undefined) {
-      mappedPayload.estimated_opportunity_value = updates.estimatedOpportunityValue;
-      const prob = updates.stageProbability ?? (targetStage ? (STAGE_PROBABILITIES[targetStage] ?? 0.05) : 0.05);
-      mappedPayload.weighted_pipeline_value = Math.round((updates.estimatedOpportunityValue || 0) * prob);
-    }
-
-    if (updates.currency !== undefined) mappedPayload.currency = updates.currency;
-    if (updates.weightedPipelineValue !== undefined) mappedPayload.weighted_pipeline_value = updates.weightedPipelineValue;
-    if (updates.stageProbability !== undefined) mappedPayload.stage_probability = updates.stageProbability;
-    if (updates.stageEnteredAt !== undefined) mappedPayload.stage_entered_at = updates.stageEnteredAt;
-    if (updates.stageChangedAt !== undefined) mappedPayload.stage_changed_at = updates.stageChangedAt;
-    if (updates.nextAction !== undefined) mappedPayload.next_action = updates.nextAction;
-    if (updates.lastUpdatedBy !== undefined) mappedPayload.last_updated_by = updates.lastUpdatedBy;
-
-    if (updates.discoveryDate !== undefined) mappedPayload.discovery_date = updates.discoveryDate;
-    if (updates.decisionMaker !== undefined) mappedPayload.decision_maker = updates.decisionMaker;
-    if (updates.decisionTimeline !== undefined) mappedPayload.decision_timeline = updates.decisionTimeline;
-
-    if (updates.proposalStatus !== undefined) mappedPayload.proposal_status = updates.proposalStatus;
-    if (updates.proposalValue !== undefined) mappedPayload.proposal_value = updates.proposalValue;
-    if (updates.proposalSentAt !== undefined) mappedPayload.proposal_sent_at = updates.proposalSentAt;
-    if (updates.proposalFollowUpAt !== undefined) mappedPayload.proposal_follow_up_at = updates.proposalFollowUpAt;
-
-    if (updates.negotiationStatus !== undefined) mappedPayload.negotiation_status = updates.negotiationStatus;
-    if (updates.expectedDecisionDate !== undefined) mappedPayload.expected_decision_date = updates.expectedDecisionDate;
-    if (updates.negotiationNotes !== undefined) mappedPayload.negotiation_notes = updates.negotiationNotes;
-
-    if (updates.wonDate !== undefined) mappedPayload.won_date = updates.wonDate;
-    if (updates.finalContractValue !== undefined) mappedPayload.final_contract_value = updates.finalContractValue;
-
-    if (updates.lostDate !== undefined) mappedPayload.lost_date = updates.lostDate;
-    if (updates.lostReason !== undefined) mappedPayload.lost_reason = updates.lostReason;
-    if (updates.lostNotes !== undefined) mappedPayload.lost_notes = updates.lostNotes;
 
     try {
-      const { error } = await supabase
+      // 3. Execute UPDATE against the correct lead ID and verify row update with .select('*').single()
+      const { data, error } = await supabase
         .from('leads')
         .update(mappedPayload)
-        .eq('id', leadId);
+        .eq('id', leadId)
+        .select('*')
+        .single();
 
       if (error) {
         console.error('[AdminLeadsService] Error updating lead in Supabase:', error.message);
-        throw new Error(error.message);
+        throw new Error(`Database update failed: ${error.message}`);
       }
 
-      // Optimistically update cached leads and notify listeners
-      this.cachedLeads = this.cachedLeads.map((lead) => {
-        if (lead.leadId === leadId) {
-          const effectiveStage = targetStage || (updates.status && ['new', 'contacted', 'qualified', 'proposal', 'won', 'lost'].includes(updates.status as OpportunityStage) ? (updates.status as OpportunityStage) : undefined) || lead.qualification.opportunityStage || 'new';
-          const stageProb = updates.stageProbability ?? (STAGE_PROBABILITIES[effectiveStage] ?? 0.05);
-          const estVal = typeof updates.estimatedOpportunityValue === 'number'
-            ? updates.estimatedOpportunityValue
-            : lead.qualification.estimatedOpportunityValue;
-          const weightedVal = typeof updates.weightedPipelineValue === 'number'
-            ? updates.weightedPipelineValue
-            : (estVal !== undefined ? Math.round(estVal * stageProb) : undefined);
+      if (!data) {
+        throw new Error(`Lead update failed: No record found with ID "${leadId}" or update was not permitted by security policies.`);
+      }
 
-          let nextStatus: CompleteLeadRecord['status'] = lead.status;
-          if (targetStage) {
-            if (['new', 'contacted', 'qualified', 'proposal', 'won', 'lost'].includes(targetStage)) {
-              nextStatus = targetStage as CompleteLeadRecord['status'];
-            } else if (targetStage === 'discovery') {
-              nextStatus = 'qualified';
-            } else if (targetStage === 'negotiation') {
-              nextStatus = 'proposal';
-            }
-          } else if (updates.status) {
-            nextStatus = updates.status;
-          }
+      // 4. Map returned verified database row into domain model
+      const updatedRecord = this.mapRowToCompleteLeadRecord(data);
 
-          const updatedQual: InternalQualificationData = {
-            ...lead.qualification,
-            ...updates,
-            opportunityStage: effectiveStage,
-            stageProbability: stageProb,
-            weightedPipelineValue: weightedVal,
-            stageChangedAt: targetStage ? timestamp : (lead.qualification.stageChangedAt || timestamp),
-            stageEnteredAt: updates.stageEnteredAt || lead.qualification.stageEnteredAt || timestamp
-          };
-          return {
-            ...lead,
-            status: nextStatus,
-            updatedAt: timestamp,
-            qualification: updatedQual
-          };
-        }
-        return lead;
-      });
+      // Preserve application-layer qualification calculations in memory
+      if (typeof updates.estimatedOpportunityValue === 'number') {
+        updatedRecord.qualification.estimatedOpportunityValue = updates.estimatedOpportunityValue;
+        const prob = STAGE_PROBABILITIES[updatedRecord.qualification.opportunityStage] ?? 0.05;
+        updatedRecord.qualification.weightedPipelineValue = Math.round(updates.estimatedOpportunityValue * prob);
+      }
+      if (updates.currency) {
+        updatedRecord.qualification.currency = updates.currency;
+      }
+      if (updates.nextAction) {
+        updatedRecord.qualification.nextAction = updates.nextAction;
+      }
+      if (updates.assignedTo !== undefined) {
+        updatedRecord.qualification.assignedTo = updates.assignedTo;
+      }
+      if (updates.internalNotes !== undefined) {
+        updatedRecord.qualification.internalNotes = updates.internalNotes;
+      }
+      if (updates.lastContactedAt !== undefined) {
+        updatedRecord.qualification.lastContactedAt = updates.lastContactedAt;
+      }
+      if (updates.nextFollowUpAt !== undefined) {
+        updatedRecord.qualification.nextFollowUpAt = updates.nextFollowUpAt;
+      }
+      if (updates.leadPriority !== undefined) {
+        updatedRecord.qualification.leadPriority = updates.leadPriority;
+      }
+      if (updates.fitStatus !== undefined) {
+        updatedRecord.qualification.fitStatus = updates.fitStatus;
+      }
+      if (updates.intentLevel !== undefined) {
+        updatedRecord.qualification.intentLevel = updates.intentLevel;
+      }
+      if (updates.growthStage !== undefined) {
+        updatedRecord.qualification.growthStage = updates.growthStage;
+      }
+      if (typeof updates.fitScore === 'number') {
+        updatedRecord.qualification.fitScore = updates.fitScore;
+      }
+
+      // 5. Update cached leads and notify listeners
+      this.cachedLeads = this.cachedLeads.map((lead) =>
+        lead.leadId === leadId ? updatedRecord : lead
+      );
+
       this.leadListeners.forEach((listener) => {
         try {
           listener(this.cachedLeads);
         } catch (_) {}
       });
 
-      // Synchronize in background
-      this.refreshLeads().catch(() => {});
+      return updatedRecord;
     } catch (error: any) {
       console.error('[AdminLeadsService] Lead update exception:', error);
       throw error;

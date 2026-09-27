@@ -61,10 +61,12 @@ export const AdminLeadTable: React.FC<AdminLeadTableProps> = ({
   const renderStatusBadge = (status: CompleteLeadRecord['status']) => {
     const statusMap: Record<CompleteLeadRecord['status'], { label: string; style: string }> = {
       new: { label: 'New', style: 'bg-blue-500 text-white' },
-      contacted: { label: 'Contacted', style: 'bg-indigo-100 text-indigo-800 border border-indigo-200' },
+      contacted: { label: 'Contacted', style: 'bg-amber-100 text-amber-800 border border-amber-200' },
       qualified: { label: 'Qualified', style: 'bg-emerald-100 text-emerald-800 border border-emerald-200' },
+      discovery: { label: 'Discovery', style: 'bg-indigo-100 text-indigo-800 border border-indigo-200' },
       proposal: { label: 'Proposal', style: 'bg-purple-100 text-purple-800 border border-purple-200' },
-      won: { label: 'Won Partner', style: 'bg-amber-100 text-amber-900 border border-amber-200 font-bold' },
+      negotiations: { label: 'Negotiations', style: 'bg-rose-100 text-rose-800 border border-rose-200' },
+      won: { label: 'Won Partner', style: 'bg-teal-100 text-teal-900 border border-teal-200 font-bold' },
       lost: { label: 'Lost', style: 'bg-gray-100 text-gray-500 border border-gray-200' }
     };
 

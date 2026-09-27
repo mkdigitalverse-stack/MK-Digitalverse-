@@ -97,7 +97,7 @@ export const AnalyticsFunnelCard: React.FC<AnalyticsFunnelCardProps> = ({ funnel
                   className={`h-full transition-all duration-500 rounded-full ${
                     stg.stageKey === 'won'
                       ? 'bg-emerald-500'
-                      : stg.stageKey === 'proposal' || stg.stageKey === 'negotiation'
+                      : stg.stageKey === 'proposal' || stg.stageKey === 'negotiations'
                       ? 'bg-purple-500'
                       : stg.stageKey === 'qualified' || stg.stageKey === 'discovery'
                       ? 'bg-amber-500'

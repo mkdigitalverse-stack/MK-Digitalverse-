@@ -17,8 +17,8 @@ export const AdminKpiMetrics: React.FC<AdminKpiMetricsProps> = ({ leads }) => {
   const activeLeads = leads.filter(l => l.qualification.opportunityStage !== 'won' && l.qualification.opportunityStage !== 'lost');
   const activeCount = activeLeads.length;
 
-  // 3. Qualified Opportunities (qualified, discovery, proposal, negotiation)
-  const qualifiedCount = leads.filter(l => ['qualified', 'discovery', 'proposal', 'negotiation'].includes(l.qualification.opportunityStage || '')).length;
+  // 3. Qualified Opportunities (qualified, discovery, proposal, negotiations)
+  const qualifiedCount = leads.filter(l => ['qualified', 'discovery', 'proposal', 'negotiations'].includes(l.qualification.opportunityStage || '')).length;
 
   // 4. Proposal Value
   const proposalLeads = leads.filter(l => l.qualification.opportunityStage === 'proposal');

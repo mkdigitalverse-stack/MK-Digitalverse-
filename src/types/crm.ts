@@ -6,7 +6,7 @@
  */
 
 export type LeadType = 'growth_audit' | 'discovery_call' | 'contact_enquiry';
-export type LeadStatus = 'new' | 'contacted' | 'qualified' | 'proposal' | 'won' | 'lost';
+export type LeadStatus = 'new' | 'contacted' | 'qualified' | 'discovery' | 'proposal' | 'negotiations' | 'won' | 'lost';
 
 export interface LeadSubmission {
   contactName: string;

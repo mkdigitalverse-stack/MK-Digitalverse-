@@ -109,7 +109,7 @@ export class FollowUpAutomationEngine {
         return 'Prepare Custom Growth Strategy & Proposal';
       case 'proposal':
         return 'Follow up on Proposal Review';
-      case 'negotiation':
+      case 'negotiations':
         return 'Finalize Scope & Commercial Terms';
       case 'won':
         return 'Initiate Client Onboarding & Partnership Kickoff';

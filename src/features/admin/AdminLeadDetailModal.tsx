@@ -281,7 +281,7 @@ export const AdminLeadDetailModal: React.FC<AdminLeadDetailModalProps> = ({
   };
 
   const handleQuickNegotiation = async () => {
-    setOpportunityStage('negotiation');
+    setOpportunityStage('negotiations');
     await adminLeadsService.addActivity(lead.leadId, {
       type: 'negotiation',
       description: 'Entered commercial negotiation & contract terms discussion',
@@ -487,9 +487,7 @@ export const AdminLeadDetailModal: React.FC<AdminLeadDetailModalProps> = ({
                   onChange={(e) => {
                     const newStg = e.target.value as OpportunityStage;
                     setOpportunityStage(newStg);
-                    if (['new', 'contacted', 'qualified', 'proposal', 'won', 'lost'].includes(newStg)) {
-                      setStatus(newStg as any);
-                    }
+                    setStatus(newStg as any);
                   }}
                   className="w-full bg-white border border-slate-300 rounded-lg px-2.5 py-1.5 text-xs font-medium text-slate-900 focus:ring-2 focus:ring-amber-500/20 focus:border-amber-500"
                 >
@@ -498,7 +496,7 @@ export const AdminLeadDetailModal: React.FC<AdminLeadDetailModalProps> = ({
                   <option value="qualified">3. QUALIFIED (25%)</option>
                   <option value="discovery">4. DISCOVERY (40%)</option>
                   <option value="proposal">5. PROPOSAL (65%)</option>
-                  <option value="negotiation">6. NEGOTIATION (80%)</option>
+                  <option value="negotiations">6. NEGOTIATIONS (80%)</option>
                   <option value="won">7. WON (100%)</option>
                   <option value="lost">8. LOST (0%)</option>
                 </select>

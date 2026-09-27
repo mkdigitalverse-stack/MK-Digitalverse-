@@ -104,7 +104,10 @@ export const AdminLeadsPage: React.FC<AdminLeadsPageProps> = ({ onReturnHome }) 
   };
 
   const handleSaveLead = async (leadId: string, updates: any) => {
-    await adminLeadsService.updateLead(leadId, updates);
+    const updatedLead = await adminLeadsService.updateLead(leadId, updates);
+    setLeads(prevLeads =>
+      prevLeads.map(l => (l.leadId === leadId ? updatedLead : l))
+    );
   };
 
   const handleUpdateStage = async (leadId: string, newStage: OpportunityStage) => {
@@ -112,10 +115,14 @@ export const AdminLeadsPage: React.FC<AdminLeadsPageProps> = ({ onReturnHome }) 
     const estVal = targetLead?.qualification.estimatedOpportunityValue || 0;
     const oldStage = targetLead?.qualification.opportunityStage || 'new';
     
-    await adminLeadsService.updateLead(leadId, { 
+    const updatedRecord = await adminLeadsService.updateLead(leadId, { 
       opportunityStage: newStage,
       estimatedOpportunityValue: estVal
     });
+
+    setLeads(prevLeads =>
+      prevLeads.map(l => (l.leadId === leadId ? updatedRecord : l))
+    );
 
     if (oldStage !== newStage) {
       await adminLeadsService.addActivity(leadId, {

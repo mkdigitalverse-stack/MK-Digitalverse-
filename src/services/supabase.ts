@@ -1,7 +1,7 @@
 import { createClient, SupabaseClient } from '@supabase/supabase-js';
 
-const supabaseUrl = import.meta.env.VITE_SUPABASE_URL || '';
-const supabaseAnonKey = import.meta.env.VITE_SUPABASE_ANON_KEY || '';
+const supabaseUrl = (typeof import.meta !== 'undefined' && import.meta.env?.VITE_SUPABASE_URL) || process.env.VITE_SUPABASE_URL || '';
+const supabaseAnonKey = (typeof import.meta !== 'undefined' && import.meta.env?.VITE_SUPABASE_ANON_KEY) || process.env.VITE_SUPABASE_ANON_KEY || '';
 
 export const isSupabaseConfigured = Boolean(supabaseUrl && supabaseAnonKey);
 
@@ -13,7 +13,7 @@ export const isSupabaseConfigured = Boolean(supabaseUrl && supabaseAnonKey);
  * If environment variables are not yet provided, this exports null
  * to safely avoid module evaluation errors.
  */
-export const supabase: SupabaseClient | null = isSupabaseConfigured
+export let supabase: SupabaseClient | null = isSupabaseConfigured
   ? createClient(supabaseUrl, supabaseAnonKey, {
       auth: {
         persistSession: true,
@@ -27,6 +27,10 @@ export const supabase: SupabaseClient | null = isSupabaseConfigured
  * Helper function to retrieve the active Supabase client.
  * Throws a descriptive error if credentials are not configured.
  */
+export function setSupabaseClient(client: SupabaseClient | null) {
+  supabase = client;
+}
+
 export function getSupabaseClient(): SupabaseClient {
   if (!supabase) {
     throw new Error(

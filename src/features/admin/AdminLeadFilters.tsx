@@ -121,7 +121,9 @@ export const AdminLeadFilters: React.FC<AdminLeadFiltersProps> = ({
             <option value="new">New</option>
             <option value="contacted">Contacted</option>
             <option value="qualified">Qualified</option>
+            <option value="discovery">Discovery</option>
             <option value="proposal">Proposal</option>
+            <option value="negotiations">Negotiations</option>
             <option value="won">Won</option>
             <option value="lost">Lost</option>
           </select>

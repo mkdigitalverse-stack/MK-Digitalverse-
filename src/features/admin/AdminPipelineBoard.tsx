@@ -34,12 +34,20 @@ const STAGES: { id: OpportunityStage; title: string; color: string; bg: string; 
   { id: 'qualified', title: 'QUALIFIED', color: 'text-emerald-700', bg: 'bg-emerald-50/50', border: 'border-emerald-200', headerBg: 'bg-emerald-100/80 text-emerald-900 border-emerald-200' },
   { id: 'discovery', title: 'DISCOVERY', color: 'text-indigo-700', bg: 'bg-indigo-50/50', border: 'border-indigo-200', headerBg: 'bg-indigo-100/80 text-indigo-900 border-indigo-200' },
   { id: 'proposal', title: 'PROPOSAL', color: 'text-purple-700', bg: 'bg-purple-50/50', border: 'border-purple-200', headerBg: 'bg-purple-100/80 text-purple-900 border-purple-200' },
-  { id: 'negotiation', title: 'NEGOTIATION', color: 'text-rose-700', bg: 'bg-rose-50/50', border: 'border-rose-200', headerBg: 'bg-rose-100/80 text-rose-900 border-rose-200' },
+  { id: 'negotiations', title: 'NEGOTIATIONS', color: 'text-rose-700', bg: 'bg-rose-50/50', border: 'border-rose-200', headerBg: 'bg-rose-100/80 text-rose-900 border-rose-200' },
   { id: 'won', title: 'WON', color: 'text-teal-700', bg: 'bg-teal-50/50', border: 'border-teal-200', headerBg: 'bg-teal-100/80 text-teal-900 border-teal-200' },
   { id: 'lost', title: 'LOST', color: 'text-slate-600', bg: 'bg-slate-100/50', border: 'border-slate-200', headerBg: 'bg-slate-200/80 text-slate-800 border-slate-300' },
 ];
 
-const STAGE_SEQUENCE: OpportunityStage[] = ['new', 'contacted', 'qualified', 'discovery', 'proposal', 'negotiation', 'won'];
+const STAGE_SEQUENCE: OpportunityStage[] = [
+  'new',
+  'contacted',
+  'qualified',
+  'discovery',
+  'proposal',
+  'negotiations',
+  'won'
+];
 
 export const AdminPipelineBoard: React.FC<AdminPipelineBoardProps> = ({
   leads,
@@ -47,6 +55,7 @@ export const AdminPipelineBoard: React.FC<AdminPipelineBoardProps> = ({
   onUpdateStage
 }) => {
   const [movingLeadId, setMovingLeadId] = useState<string | null>(null);
+  const [stageError, setStageError] = useState<string | null>(null);
 
   // Executive pipeline calculations
   const activeLeads = leads.filter(l => (l.qualification.opportunityStage || 'new') !== 'lost');
@@ -71,8 +80,13 @@ export const AdminPipelineBoard: React.FC<AdminPipelineBoardProps> = ({
 
   const handleStageChange = async (leadId: string, newStage: OpportunityStage) => {
     setMovingLeadId(leadId);
+    setStageError(null);
     try {
       await onUpdateStage(leadId, newStage);
+    } catch (err: any) {
+      const msg = err?.message || 'Failed to update pipeline stage';
+      setStageError(msg);
+      console.error('[AdminPipelineBoard] Stage update error:', err);
     } finally {
       setMovingLeadId(null);
     }
@@ -90,17 +104,16 @@ export const AdminPipelineBoard: React.FC<AdminPipelineBoardProps> = ({
   const handleQuickMarkContacted = async (item: CompleteLeadRecord, e: React.MouseEvent) => {
     e.stopPropagation();
     setMovingLeadId(item.leadId);
+    setStageError(null);
     try {
-      const nowIso = new Date().toISOString();
-      await adminLeadsService.updateLead(item.leadId, {
-        lastContactedAt: nowIso,
-        opportunityStage: item.qualification.opportunityStage === 'new' ? 'contacted' : item.qualification.opportunityStage
-      });
+      await onUpdateStage(item.leadId, 'contacted');
       await adminLeadsService.addActivity(item.leadId, {
         type: 'contacted',
         description: 'Lead marked contacted via Sales Pipeline Board quick action',
         actor: item.qualification.assignedTo || 'Growth Partner'
       });
+    } catch (err: any) {
+      setStageError(err?.message || 'Failed to mark lead as contacted');
     } finally {
       setMovingLeadId(null);
     }
@@ -108,6 +121,21 @@ export const AdminPipelineBoard: React.FC<AdminPipelineBoardProps> = ({
 
   return (
     <div className="space-y-4">
+      {/* Pipeline Stage Error Banner */}
+      {stageError && (
+        <div className="p-3 bg-red-50 border border-red-200 rounded-xl flex items-center justify-between text-xs text-red-800">
+          <div className="flex items-center space-x-2">
+            <AlertCircle className="w-4 h-4 text-red-600 shrink-0" />
+            <span><strong>Pipeline Error:</strong> {stageError}</span>
+          </div>
+          <button
+            onClick={() => setStageError(null)}
+            className="text-red-600 hover:text-red-900 font-bold px-2 py-0.5 text-xs"
+          >
+            ✕
+          </button>
+        </div>
+      )}
       {/* Executive Sales Pipeline Bar */}
       <div className="grid grid-cols-2 sm:grid-cols-5 gap-3 bg-white p-3.5 rounded-xl border border-slate-200 shadow-2xs">
         <div>
@@ -213,7 +241,8 @@ export const AdminPipelineBoard: React.FC<AdminPipelineBoardProps> = ({
                     stageLeads.map((item) => {
                       const evalOpp = FollowUpAutomationEngine.evaluateOpportunity(item);
                       const estValue = item.qualification.estimatedOpportunityValue || 0;
-                      const nextStageIdx = STAGE_SEQUENCE.indexOf(item.qualification.opportunityStage || 'new');
+                      const currentStage = item.qualification.opportunityStage || 'new';
+                      const nextStageIdx = STAGE_SEQUENCE.indexOf(currentStage);
                       const canAdvance = nextStageIdx >= 0 && nextStageIdx < STAGE_SEQUENCE.length - 1;
 
                       return (
