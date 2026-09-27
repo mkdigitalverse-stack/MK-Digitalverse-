@@ -4,11 +4,10 @@
  * Dedicated service for handling public marketing lead submissions (Growth Audit,
  * Discovery Calls, Contact Inquiries) using Supabase.
  *
- * Preferred Method:
- * 1. Calls submit_public_lead() RPC if available.
- * 2. Falls back to public.leads table insert.
- * 3. Preserves offline local queue (mk_leads_queue) if network/client is unconfigured.
- * 4. Asynchronously invokes server notification processor (/api/notifications/process).
+ * Method:
+ * 1. Calls submit_public_lead(payload jsonb) RPC (SECURITY DEFINER).
+ * 2. Preserves offline local queue (mk_leads_queue) if network/client is unconfigured or submission fails.
+ * 3. Asynchronously invokes server notification processor (/api/notifications/process).
  */
 
 import { supabase } from './supabase';
@@ -133,127 +132,40 @@ export async function submitPublicLead(
 
   // Attempt Supabase submission if client is configured
   if (supabase) {
-    // 1. Preferred Method: submit_public_lead() RPC
-    // Attempt clean, isolated parameter signatures sequentially so PostgREST can
-    // resolve against PostgreSQL's exact schema cache without 42-parameter collision.
+    // Definitive Method: submit_public_lead() RPC (SECURITY DEFINER)
+    // Directly invokes the PostgreSQL function: submit_public_lead(payload jsonb)
     try {
-      const pArgs: Record<string, unknown> = {
-        p_name: sanitizedName,
-        p_contact_name: sanitizedName,
-        p_email: sanitizedEmail,
-        p_phone: phone,
-        p_organization_name: organizationName,
-        p_website: website,
-        p_location: location,
-        p_healthcare_category: healthcareCategory,
-        p_biggest_challenge: biggestChallenge,
-        p_growth_objective: growthObjective,
-        p_investment_readiness: investmentReadiness,
-        p_lead_type: payload.leadType,
-        p_utm_source: payload.utm_source || '',
-        p_utm_medium: payload.utm_medium || '',
-        p_utm_campaign: payload.utm_campaign || '',
-        p_utm_content: payload.utm_content || '',
-        p_utm_term: payload.utm_term || '',
-        p_gclid: payload.gclid || '',
-        p_fbclid: payload.fbclid || '',
-        p_landing_page: payload.landingPage || '',
-        p_referrer: payload.referrer || ''
-      };
+      const { data, error } = await supabase.rpc('submit_public_lead', {
+        payload: supabaseLeadRecord
+      });
 
-      // 1a. Attempt standard p_ prefixed named arguments
-      let rpcRes = await supabase.rpc('submit_public_lead', pArgs);
-
-      // 1b. If function expects a single jsonb parameter: { lead_data: ... }
-      if (rpcRes.error && (rpcRes.error.code === 'PGRST202' || rpcRes.error.message.includes('Could not find the function'))) {
-        rpcRes = await supabase.rpc('submit_public_lead', { lead_data: supabaseLeadRecord });
-      }
-
-      // 1c. If function expects a single jsonb parameter: { payload: ... }
-      if (rpcRes.error && (rpcRes.error.code === 'PGRST202' || rpcRes.error.message.includes('Could not find the function'))) {
-        rpcRes = await supabase.rpc('submit_public_lead', { payload: supabaseLeadRecord });
-      }
-
-      // 1d. If function expects clean unprefixed named arguments: { name, email, ... }
-      if (rpcRes.error && (rpcRes.error.code === 'PGRST202' || rpcRes.error.message.includes('Could not find the function'))) {
-        const unprefixedArgs: Record<string, unknown> = {
-          name: sanitizedName,
-          contact_name: sanitizedName,
-          email: sanitizedEmail,
-          phone,
-          organization_name: organizationName,
-          website,
-          location,
-          healthcare_category: healthcareCategory,
-          biggest_challenge: biggestChallenge,
-          growth_objective: growthObjective,
-          investment_readiness: investmentReadiness,
-          lead_type: payload.leadType,
-          utm_source: payload.utm_source || '',
-          utm_medium: payload.utm_medium || '',
-          utm_campaign: payload.utm_campaign || '',
-          utm_content: payload.utm_content || '',
-          utm_term: payload.utm_term || '',
-          gclid: payload.gclid || '',
-          fbclid: payload.fbclid || '',
-          landing_page: payload.landingPage || '',
-          referrer: payload.referrer || ''
-        };
-        rpcRes = await supabase.rpc('submit_public_lead', unprefixedArgs);
-      }
-
-      if (!rpcRes.error) {
+      if (!error) {
         lastSubmissionTimes.set(sanitizedEmail, Date.now());
         removeFromLocalQueue();
-        const rpcData = rpcRes.data;
-        const returnedId = (rpcData && typeof rpcData === 'object' && 'id' in rpcData)
-          ? String((rpcData as { id: unknown }).id)
-          : (typeof rpcData === 'string' ? rpcData : clientTrackingId);
+
+        const returnedId = (data && typeof data === 'object' && 'id' in data)
+          ? String((data as { id: unknown }).id)
+          : (typeof data === 'string' && data ? data : clientTrackingId);
 
         triggerNotification(returnedId);
         return { success: true, leadId: returnedId, source: 'supabase_rpc' };
       }
 
-      lastErrorMessage = rpcRes.error.message;
-      console.warn('[SupabasePublicLeads] submit_public_lead RPC warning, falling back to public.leads insert:', rpcRes.error.message);
+      lastErrorMessage = error.message || 'Lead submission failed.';
+      console.error('[SupabasePublicLeads] submit_public_lead RPC error:', error.message);
     } catch (rpcEx: any) {
       lastErrorMessage = rpcEx?.message || String(rpcEx);
-      console.warn('[SupabasePublicLeads] submit_public_lead RPC call note:', rpcEx);
-    }
-
-    // 2. Secondary Method: Direct insert into public.leads table (fallback if direct anon insert policy exists)
-    // CRITICAL: Do NOT chain .select('id') or .maybeSingle().
-    // An anonymous visitor has INSERT permissions but NOT SELECT permissions on public.leads.
-    // Omission of .select() uses PostgREST 'Prefer: return=minimal' so PostgreSQL evaluates
-    // only the INSERT RLS policy and does not trigger SELECT RLS violations.
-    try {
-      const { error: insertError } = await supabase
-        .from('leads')
-        .insert(supabaseLeadRecord);
-
-      if (!insertError) {
-        lastSubmissionTimes.set(sanitizedEmail, Date.now());
-        removeFromLocalQueue();
-        triggerNotification(clientTrackingId);
-        return { success: true, leadId: clientTrackingId, source: 'supabase_table' };
-      }
-
-      lastErrorMessage = insertError.message;
-      console.warn('[SupabasePublicLeads] public.leads insert rejected by Supabase:', insertError.message);
-    } catch (tableEx: any) {
-      lastErrorMessage = tableEx?.message || String(tableEx);
-      console.warn('[SupabasePublicLeads] public.leads table insert note:', tableEx);
+      console.error('[SupabasePublicLeads] submit_public_lead RPC exception:', rpcEx);
     }
   } else {
     lastErrorMessage = 'Supabase client is not configured in this environment.';
   }
 
-  // 3. Fallback: Preserved in offline local queue
-  // Report genuine failure so the caller and website do NOT display a false success message.
+  // Preserved in offline local queue on failure
   return {
     success: false,
     leadId: clientTrackingId,
     source: 'offline_queue',
-    error: lastErrorMessage || 'Unable to complete lead insertion into database. Saved to offline queue.'
+    error: lastErrorMessage || 'Unable to complete lead submission. Saved to offline queue.'
   };
 }
