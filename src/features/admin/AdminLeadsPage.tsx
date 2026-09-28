@@ -19,6 +19,17 @@ import { AdminLeadDetailModal } from './AdminLeadDetailModal';
 import { AdminSalesReportsView } from './AdminSalesReportsView';
 import { AdminLeadReportsView } from './AdminLeadReportsView';
 import { exportLeadsToCsv } from '../../services/leadExportService';
+import { ClientRecord, InvoiceRecord, PaymentRecord, ExpenseRecord } from '../../types/finance';
+import { financeService } from '../../services/financeService';
+import { AdminFinanceOverviewView } from './AdminFinanceOverviewView';
+import { AdminInvoicesView } from './AdminInvoicesView';
+import { AdminPaymentsView } from './AdminPaymentsView';
+import { AdminExpensesView } from './AdminExpensesView';
+import { AdminClientsView } from './AdminClientsView';
+import { AdminCreateInvoiceModal } from './AdminCreateInvoiceModal';
+import { AdminRecordPaymentModal } from './AdminRecordPaymentModal';
+import { AdminCreateClientModal } from './AdminCreateClientModal';
+import { AdminLogExpenseModal } from './AdminLogExpenseModal';
 import { 
   ShieldCheck, 
   Lock, 
@@ -73,6 +84,36 @@ export const AdminLeadsPage: React.FC<AdminLeadsPageProps> = ({ onReturnHome }) 
   const [selectedLead, setSelectedLead] = useState<CompleteLeadRecord | null>(null);
   const [isRefreshing, setIsRefreshing] = useState<boolean>(false);
 
+  // Finance Domain State
+  const [clients, setClients] = useState<ClientRecord[]>([]);
+  const [invoices, setInvoices] = useState<InvoiceRecord[]>([]);
+  const [payments, setPayments] = useState<PaymentRecord[]>([]);
+  const [expenses, setExpenses] = useState<ExpenseRecord[]>([]);
+  const [isCreateInvoiceOpen, setIsCreateInvoiceOpen] = useState<boolean>(false);
+  const [isRecordPaymentOpen, setIsRecordPaymentOpen] = useState<boolean>(false);
+  const [isCreateClientOpen, setIsCreateClientOpen] = useState<boolean>(false);
+  const [isLogExpenseOpen, setIsLogExpenseOpen] = useState<boolean>(false);
+  const [activePaymentInvoice, setActivePaymentInvoice] = useState<InvoiceRecord | null>(null);
+  const [activeClientForAction, setActiveClientForAction] = useState<ClientRecord | null>(null);
+  const [clientFromLeadData, setClientFromLeadData] = useState<any | null>(null);
+
+  const loadFinanceData = async () => {
+    try {
+      const [fetchedClients, fetchedInvoices, fetchedPayments, fetchedExpenses] = await Promise.all([
+        financeService.getClients(),
+        financeService.getInvoices(),
+        financeService.getPayments(),
+        financeService.getExpenses()
+      ]);
+      setClients(fetchedClients);
+      setInvoices(fetchedInvoices);
+      setPayments(fetchedPayments);
+      setExpenses(fetchedExpenses);
+    } catch (err) {
+      console.warn('[AdminLeadsPage] Failed to fetch finance data:', err);
+    }
+  };
+
   // 1. Subscribe to Auth State
   useEffect(() => {
     setIsAuthChecking(true);
@@ -111,6 +152,13 @@ export const AdminLeadsPage: React.FC<AdminLeadsPageProps> = ({ onReturnHome }) 
     return () => unsubscribe();
   }, [isAdmin]);
 
+  // Load finance records when admin is verified
+  useEffect(() => {
+    if (isAdmin) {
+      loadFinanceData();
+    }
+  }, [isAdmin]);
+
   // Handle ESC key for modals and drawers
   useEffect(() => {
     const handleKeyDown = (e: KeyboardEvent) => {
@@ -141,6 +189,44 @@ export const AdminLeadsPage: React.FC<AdminLeadsPageProps> = ({ onReturnHome }) 
   const handleRefresh = () => {
     setIsRefreshing(true);
     adminLeadsService.refreshLeads();
+    loadFinanceData().finally(() => setIsRefreshing(false));
+  };
+
+  const handleCreateInvoice = async (invoiceInput: any) => {
+    await financeService.createInvoice(invoiceInput);
+    await loadFinanceData();
+  };
+
+  const handleRecordPayment = async (paymentInput: any) => {
+    await financeService.recordPayment(paymentInput);
+    await loadFinanceData();
+  };
+
+  const handleCreateClient = async (clientInput: any) => {
+    await financeService.createClient(clientInput);
+    await loadFinanceData();
+  };
+
+  const handleLogExpense = async (expenseInput: any) => {
+    await financeService.createExpense(expenseInput);
+    await loadFinanceData();
+  };
+
+  const handleDeleteExpense = async (expenseId: string) => {
+    await financeService.deleteExpense(expenseId);
+    await loadFinanceData();
+  };
+
+  const handleConvertToClientFromLead = (leadRecord: CompleteLeadRecord) => {
+    setClientFromLeadData({
+      leadId: leadRecord.leadId,
+      name: leadRecord.visitorData.contactName,
+      organizationName: leadRecord.visitorData.organizationName,
+      email: leadRecord.visitorData.email,
+      phone: leadRecord.visitorData.phone,
+      healthcareCategory: leadRecord.qualification.healthcareCategoryNormalized || leadRecord.visitorData.healthcareCategory
+    });
+    setIsCreateClientOpen(true);
   };
 
   const handleSaveLead = async (leadId: string, updates: any) => {
@@ -575,51 +661,93 @@ export const AdminLeadsPage: React.FC<AdminLeadsPageProps> = ({ onReturnHome }) 
               <AdminSalesReportsView leads={leads} />
             )}
 
-            {/* TAB 10: REVENUE REPORTS (REPORTS) */}
+            {/* TAB 10: FINANCE OVERVIEW */}
             {activeTab === 'revenue_reports' && (
-              <div className="space-y-6">
-                <div className="grid grid-cols-1 sm:grid-cols-3 gap-4">
-                  <div className="p-4 bg-white rounded-xl border border-slate-200 shadow-2xs">
-                    <span className="text-[10px] font-bold text-slate-500 uppercase tracking-wider block mb-1">
-                      ACTIVE PIPELINE VALUE
-                    </span>
-                    <span className="text-2xl font-bold font-mono text-slate-900">
-                      ${intelligence.revenue.activePipelineValue.toLocaleString()}
-                    </span>
-                    <span className="text-xs text-slate-500 block mt-1">Across all open opportunities</span>
-                  </div>
-
-                  <div className="p-4 bg-white rounded-xl border border-amber-200 shadow-2xs">
-                    <span className="text-[10px] font-bold text-amber-700 uppercase tracking-wider block mb-1">
-                      WEIGHTED REVENUE POTENTIAL
-                    </span>
-                    <span className="text-2xl font-bold font-mono text-amber-900">
-                      ${intelligence.revenue.weightedPipelineValue.toLocaleString()}
-                    </span>
-                    <span className="text-xs text-amber-700/80 block mt-1">Probability adjusted forecast</span>
-                  </div>
-
-                  <div className="p-4 bg-white rounded-xl border border-teal-200 shadow-2xs">
-                    <span className="text-[10px] font-bold text-teal-700 uppercase tracking-wider block mb-1">
-                      CLOSED WON REVENUE
-                    </span>
-                    <span className="text-2xl font-bold font-mono text-teal-900">
-                      ${intelligence.revenue.wonRevenueValue.toLocaleString()}
-                    </span>
-                    <span className="text-xs text-teal-700 block mt-1">
-                      {intelligence.funnel.wonCount} signed client partner retainers
-                    </span>
-                  </div>
-                </div>
-
-                <div className="bg-white p-4 sm:p-5 rounded-xl border border-slate-200 shadow-2xs">
-                  <h3 className="text-sm font-bold text-slate-900 mb-3">Specialty Segment Revenue Breakdown</h3>
-                  <AnalyticsSegmentMatrix segments={intelligence.segments} />
-                </div>
-              </div>
+              <AdminFinanceOverviewView
+                invoices={invoices}
+                payments={payments}
+                expenses={expenses}
+                clients={clients}
+                onRefresh={loadFinanceData}
+                onOpenCreateInvoice={() => {
+                  setActiveClientForAction(null);
+                  setIsCreateInvoiceOpen(true);
+                }}
+                onOpenRecordPayment={() => {
+                  setActivePaymentInvoice(null);
+                  setActiveClientForAction(null);
+                  setIsRecordPaymentOpen(true);
+                }}
+                onOpenLogExpense={() => setIsLogExpenseOpen(true)}
+                onSelectTab={setActiveTab}
+              />
             )}
 
-            {/* TAB 11: LEAD REPORTS (REPORTS) */}
+            {/* TAB 11: INVOICES & RECEIVABLES */}
+            {activeTab === 'finance_invoices' && (
+              <AdminInvoicesView
+                invoices={invoices}
+                clients={clients}
+                onOpenCreateInvoice={() => {
+                  setActiveClientForAction(null);
+                  setIsCreateInvoiceOpen(true);
+                }}
+                onRecordPaymentForInvoice={(inv) => {
+                  setActivePaymentInvoice(inv);
+                  setActiveClientForAction(null);
+                  setIsRecordPaymentOpen(true);
+                }}
+                onRefresh={loadFinanceData}
+              />
+            )}
+
+            {/* TAB 12: INCOME & PAYMENTS */}
+            {activeTab === 'finance_payments' && (
+              <AdminPaymentsView
+                payments={payments}
+                onOpenRecordPayment={() => {
+                  setActivePaymentInvoice(null);
+                  setActiveClientForAction(null);
+                  setIsRecordPaymentOpen(true);
+                }}
+                onRefresh={loadFinanceData}
+              />
+            )}
+
+            {/* TAB 13: EXPENSES */}
+            {activeTab === 'report_expenses' && (
+              <AdminExpensesView
+                expenses={expenses}
+                onOpenLogExpense={() => setIsLogExpenseOpen(true)}
+                onDeleteExpense={handleDeleteExpense}
+                onRefresh={loadFinanceData}
+              />
+            )}
+
+            {/* TAB 14: CLIENT ACCOUNTS */}
+            {activeTab === 'finance_clients' && (
+              <AdminClientsView
+                clients={clients}
+                invoices={invoices}
+                payments={payments}
+                onOpenCreateClient={() => {
+                  setClientFromLeadData(null);
+                  setIsCreateClientOpen(true);
+                }}
+                onOpenCreateInvoiceForClient={(c) => {
+                  setActiveClientForAction(c);
+                  setIsCreateInvoiceOpen(true);
+                }}
+                onOpenRecordPaymentForClient={(c) => {
+                  setActiveClientForAction(c);
+                  setActivePaymentInvoice(null);
+                  setIsRecordPaymentOpen(true);
+                }}
+                onRefresh={loadFinanceData}
+              />
+            )}
+
+            {/* TAB 15: LEAD REPORTS (REPORTS) */}
             {activeTab === 'lead_reports' && (
               <AdminLeadReportsView leads={leads} />
             )}
@@ -629,6 +757,49 @@ export const AdminLeadsPage: React.FC<AdminLeadsPageProps> = ({ onReturnHome }) 
               lead={selectedLead}
               onClose={() => setSelectedLead(null)}
               onSaveLead={handleSaveLead}
+              onConvertToClient={handleConvertToClientFromLead}
+            />
+
+            {/* Finance Modals */}
+            <AdminCreateInvoiceModal
+              isOpen={isCreateInvoiceOpen}
+              onClose={() => {
+                setIsCreateInvoiceOpen(false);
+                setActiveClientForAction(null);
+              }}
+              onSubmit={handleCreateInvoice}
+              clients={clients}
+              initialClient={activeClientForAction}
+            />
+
+            <AdminRecordPaymentModal
+              isOpen={isRecordPaymentOpen}
+              onClose={() => {
+                setIsRecordPaymentOpen(false);
+                setActivePaymentInvoice(null);
+                setActiveClientForAction(null);
+              }}
+              onSubmit={handleRecordPayment}
+              clients={clients}
+              invoices={invoices}
+              initialInvoice={activePaymentInvoice}
+              initialClient={activeClientForAction}
+            />
+
+            <AdminCreateClientModal
+              isOpen={isCreateClientOpen}
+              onClose={() => {
+                setIsCreateClientOpen(false);
+                setClientFromLeadData(null);
+              }}
+              onSubmit={handleCreateClient}
+              initialData={clientFromLeadData}
+            />
+
+            <AdminLogExpenseModal
+              isOpen={isLogExpenseOpen}
+              onClose={() => setIsLogExpenseOpen(false)}
+              onSubmit={handleLogExpense}
             />
 
           </main>

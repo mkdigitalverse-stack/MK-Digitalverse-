@@ -315,7 +315,7 @@ export const AdminFinanceOverviewView: React.FC<AdminFinanceOverviewViewProps> =
                         {cat.replace('_', ' ')}
                       </div>
                       <div className="font-mono font-bold text-slate-800 mt-0.5">
-                        {data.symbol}{amt.toLocaleString(undefined, { minimumFractionDigits: 2 })}
+                        {data.symbol}{Number(amt).toLocaleString(undefined, { minimumFractionDigits: 2 })}
                       </div>
                     </div>
                   );
