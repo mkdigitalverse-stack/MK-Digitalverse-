@@ -188,6 +188,7 @@ export interface CurrencyFinancialSummary {
   invoicesCount: number;
   paymentsCount: number;
   expensesCount: number;
+  totalProcessingFees: number; // Informational: Sum of gateway/PayPal fees
 }
 
 export interface FinancialReportingSummary {

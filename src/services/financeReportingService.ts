@@ -89,6 +89,8 @@ export class FinanceReportingService {
         .filter(i => i.dueDate < todayStr && i.amountOutstanding > 0.01)
         .reduce((acc, i) => acc + i.amountOutstanding, 0);
 
+      const totalProcessingFees = currPayments.reduce((acc, p) => acc + (p.feeAmount || 0), 0);
+
       byCurrency[curr] = {
         currencyCode: curr,
         symbol: currSymbol,
@@ -100,7 +102,8 @@ export class FinanceReportingService {
         overdueReceivables: Math.round(overdueReceivables * 100) / 100,
         invoicesCount: currInvoices.length,
         paymentsCount: currPayments.length,
-        expensesCount: currExpenses.length
+        expensesCount: currExpenses.length,
+        totalProcessingFees: Math.round(totalProcessingFees * 100) / 100
       };
 
       // Categorize expenses

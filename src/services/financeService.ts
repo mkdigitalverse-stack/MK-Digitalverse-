@@ -20,7 +20,8 @@ import {
   ExpenseRecord,
   ClientFinancialProfile,
   CurrencyCode,
-  InvoiceStatus
+  InvoiceStatus,
+  PaymentStatus
 } from '../types/finance';
 
 const LOCAL_STORAGE_KEY_CLIENTS = 'mk_finance_clients_v1';
@@ -606,6 +607,33 @@ class FinanceService {
     this.saveLocalCache();
     await this.getInvoices();
     return created;
+  }
+
+  public async updatePaymentStatus(paymentId: string, status: PaymentStatus): Promise<PaymentRecord> {
+    if (!paymentId) throw new Error('Payment ID is required.');
+
+    if (supabase) {
+      try {
+        const { error } = await supabase
+          .from('payments')
+          .update({ status })
+          .eq('id', paymentId);
+
+        if (error) throw new Error(error.message);
+      } catch (err: any) {
+        console.warn('[FinanceService] Supabase updatePaymentStatus note:', err?.message);
+      }
+    }
+
+    const idx = this.cachedPayments.findIndex(p => p.id === paymentId);
+    if (idx !== -1) {
+      this.cachedPayments[idx].status = status;
+      this.saveLocalCache();
+    }
+
+    // Always recalculate invoices so invoice paid & outstanding balances update immediately!
+    await this.getInvoices();
+    return this.cachedPayments.find(p => p.id === paymentId)!;
   }
 
   // ============================================================================

@@ -20,8 +20,11 @@ import { AdminSalesReportsView } from './AdminSalesReportsView';
 import { AdminLeadReportsView } from './AdminLeadReportsView';
 import { exportLeadsToCsv } from '../../services/leadExportService';
 import { ClientRecord, InvoiceRecord, PaymentRecord, ExpenseRecord } from '../../types/finance';
+import { ContractRecord } from '../../types/contracts';
 import { financeService } from '../../services/financeService';
+import { contractService } from '../../services/contractService';
 import { AdminFinanceOverviewView } from './AdminFinanceOverviewView';
+import { AdminContractsView } from './AdminContractsView';
 import { AdminInvoicesView } from './AdminInvoicesView';
 import { AdminPaymentsView } from './AdminPaymentsView';
 import { AdminExpensesView } from './AdminExpensesView';
@@ -30,6 +33,10 @@ import { AdminCreateInvoiceModal } from './AdminCreateInvoiceModal';
 import { AdminRecordPaymentModal } from './AdminRecordPaymentModal';
 import { AdminCreateClientModal } from './AdminCreateClientModal';
 import { AdminLogExpenseModal } from './AdminLogExpenseModal';
+import { AdminContractDetailModal } from './AdminContractDetailModal';
+import { AdminCreateContractModal } from './AdminCreateContractModal';
+import { AdminCreateMilestoneModal } from './AdminCreateMilestoneModal';
+import { AdminClientPortalModal } from './AdminClientPortalModal';
 import { 
   ShieldCheck, 
   Lock, 
@@ -84,11 +91,21 @@ export const AdminLeadsPage: React.FC<AdminLeadsPageProps> = ({ onReturnHome }) 
   const [selectedLead, setSelectedLead] = useState<CompleteLeadRecord | null>(null);
   const [isRefreshing, setIsRefreshing] = useState<boolean>(false);
 
-  // Finance Domain State
+  // Finance & Contracts Domain State
   const [clients, setClients] = useState<ClientRecord[]>([]);
   const [invoices, setInvoices] = useState<InvoiceRecord[]>([]);
   const [payments, setPayments] = useState<PaymentRecord[]>([]);
   const [expenses, setExpenses] = useState<ExpenseRecord[]>([]);
+  const [contracts, setContracts] = useState<ContractRecord[]>([]);
+  const [selectedContract, setSelectedContract] = useState<ContractRecord | null>(null);
+  const [isCreateContractOpen, setIsCreateContractOpen] = useState<boolean>(false);
+  const [isCreateMilestoneOpen, setIsCreateMilestoneOpen] = useState<boolean>(false);
+  const [activeContractForMilestone, setActiveContractForMilestone] = useState<ContractRecord | null>(null);
+  const [isClientPortalOpen, setIsClientPortalOpen] = useState<boolean>(false);
+  const [portalClient, setPortalClient] = useState<ClientRecord | null>(null);
+  const [initialClientForContract, setInitialClientForContract] = useState<ClientRecord | null>(null);
+  const [initialLeadIdForContract, setInitialLeadIdForContract] = useState<string | null>(null);
+
   const [isCreateInvoiceOpen, setIsCreateInvoiceOpen] = useState<boolean>(false);
   const [isRecordPaymentOpen, setIsRecordPaymentOpen] = useState<boolean>(false);
   const [isCreateClientOpen, setIsCreateClientOpen] = useState<boolean>(false);
@@ -99,18 +116,20 @@ export const AdminLeadsPage: React.FC<AdminLeadsPageProps> = ({ onReturnHome }) 
 
   const loadFinanceData = async () => {
     try {
-      const [fetchedClients, fetchedInvoices, fetchedPayments, fetchedExpenses] = await Promise.all([
+      const [fetchedClients, fetchedInvoices, fetchedPayments, fetchedExpenses, fetchedContracts] = await Promise.all([
         financeService.getClients(),
         financeService.getInvoices(),
         financeService.getPayments(),
-        financeService.getExpenses()
+        financeService.getExpenses(),
+        contractService.getContracts()
       ]);
       setClients(fetchedClients);
       setInvoices(fetchedInvoices);
       setPayments(fetchedPayments);
       setExpenses(fetchedExpenses);
+      setContracts(fetchedContracts);
     } catch (err) {
-      console.warn('[AdminLeadsPage] Failed to fetch finance data:', err);
+      console.warn('[AdminLeadsPage] Failed to fetch finance and contract data:', err);
     }
   };
 
@@ -202,6 +221,11 @@ export const AdminLeadsPage: React.FC<AdminLeadsPageProps> = ({ onReturnHome }) 
     await loadFinanceData();
   };
 
+  const handleUpdatePaymentStatus = async (paymentId: string, status: any) => {
+    await financeService.updatePaymentStatus(paymentId, status);
+    await loadFinanceData();
+  };
+
   const handleCreateClient = async (clientInput: any) => {
     await financeService.createClient(clientInput);
     await loadFinanceData();
@@ -215,6 +239,21 @@ export const AdminLeadsPage: React.FC<AdminLeadsPageProps> = ({ onReturnHome }) 
   const handleDeleteExpense = async (expenseId: string) => {
     await financeService.deleteExpense(expenseId);
     await loadFinanceData();
+  };
+
+  const handleCreateContract = async (contractInput: any) => {
+    await contractService.createContract(contractInput);
+    await loadFinanceData();
+    setIsCreateContractOpen(false);
+    setInitialClientForContract(null);
+    setInitialLeadIdForContract(null);
+  };
+
+  const handleCreateMilestone = async (milestoneInput: any) => {
+    await contractService.createMilestone(milestoneInput);
+    await loadFinanceData();
+    setIsCreateMilestoneOpen(false);
+    setActiveContractForMilestone(null);
   };
 
   const handleConvertToClientFromLead = (leadRecord: CompleteLeadRecord) => {
@@ -683,6 +722,25 @@ export const AdminLeadsPage: React.FC<AdminLeadsPageProps> = ({ onReturnHome }) 
               />
             )}
 
+            {/* TAB: CONTRACTS & MILESTONES */}
+            {activeTab === 'finance_contracts' && (
+              <AdminContractsView
+                contracts={contracts}
+                clients={clients}
+                onOpenCreateContract={() => {
+                  setInitialClientForContract(null);
+                  setInitialLeadIdForContract(null);
+                  setIsCreateContractOpen(true);
+                }}
+                onSelectContract={(contract) => setSelectedContract(contract)}
+                onOpenClientPortal={(client) => {
+                  setPortalClient(client);
+                  setIsClientPortalOpen(true);
+                }}
+                onRefresh={loadFinanceData}
+              />
+            )}
+
             {/* TAB 11: INVOICES & RECEIVABLES */}
             {activeTab === 'finance_invoices' && (
               <AdminInvoicesView
@@ -711,6 +769,7 @@ export const AdminLeadsPage: React.FC<AdminLeadsPageProps> = ({ onReturnHome }) 
                   setIsRecordPaymentOpen(true);
                 }}
                 onRefresh={loadFinanceData}
+                onUpdatePaymentStatus={handleUpdatePaymentStatus}
               />
             )}
 
@@ -730,6 +789,7 @@ export const AdminLeadsPage: React.FC<AdminLeadsPageProps> = ({ onReturnHome }) 
                 clients={clients}
                 invoices={invoices}
                 payments={payments}
+                contracts={contracts}
                 onOpenCreateClient={() => {
                   setClientFromLeadData(null);
                   setIsCreateClientOpen(true);
@@ -742,6 +802,15 @@ export const AdminLeadsPage: React.FC<AdminLeadsPageProps> = ({ onReturnHome }) 
                   setActiveClientForAction(c);
                   setActivePaymentInvoice(null);
                   setIsRecordPaymentOpen(true);
+                }}
+                onOpenCreateContractForClient={(c) => {
+                  setInitialClientForContract(c);
+                  setInitialLeadIdForContract(c.leadId || null);
+                  setIsCreateContractOpen(true);
+                }}
+                onOpenClientPortal={(c) => {
+                  setPortalClient(c);
+                  setIsClientPortalOpen(true);
                 }}
                 onRefresh={loadFinanceData}
               />
@@ -800,6 +869,60 @@ export const AdminLeadsPage: React.FC<AdminLeadsPageProps> = ({ onReturnHome }) 
               isOpen={isLogExpenseOpen}
               onClose={() => setIsLogExpenseOpen(false)}
               onSubmit={handleLogExpense}
+            />
+
+            {/* Contract Modals */}
+            <AdminContractDetailModal
+              contract={selectedContract}
+              onClose={() => setSelectedContract(null)}
+              onRefresh={loadFinanceData}
+              onOpenCreateMilestone={(contract) => {
+                setActiveContractForMilestone(contract);
+                setIsCreateMilestoneOpen(true);
+              }}
+              onOpenCreateInvoiceForContract={(contract) => {
+                const client = clients.find(c => c.id === contract.clientId) || null;
+                setActiveClientForAction(client);
+                setIsCreateInvoiceOpen(true);
+              }}
+              onOpenClientPortal={(client) => {
+                setPortalClient(client);
+                setIsClientPortalOpen(true);
+              }}
+              clients={clients}
+              invoices={invoices}
+            />
+
+            <AdminCreateContractModal
+              isOpen={isCreateContractOpen}
+              onClose={() => {
+                setIsCreateContractOpen(false);
+                setInitialClientForContract(null);
+                setInitialLeadIdForContract(null);
+              }}
+              onSubmit={handleCreateContract}
+              clients={clients}
+              initialClient={initialClientForContract}
+              initialLeadId={initialLeadIdForContract}
+            />
+
+            <AdminCreateMilestoneModal
+              isOpen={isCreateMilestoneOpen}
+              onClose={() => {
+                setIsCreateMilestoneOpen(false);
+                setActiveContractForMilestone(null);
+              }}
+              onSubmit={handleCreateMilestone}
+              contract={activeContractForMilestone}
+            />
+
+            <AdminClientPortalModal
+              isOpen={isClientPortalOpen}
+              onClose={() => {
+                setIsClientPortalOpen(false);
+                setPortalClient(null);
+              }}
+              client={portalClient}
             />
 
           </main>

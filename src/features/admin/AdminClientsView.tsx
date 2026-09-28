@@ -21,14 +21,18 @@ import {
   ClientFinancialProfile,
   SUPPORTED_CURRENCIES
 } from '../../types/finance';
+import { ContractRecord } from '../../types/contracts';
 
 interface AdminClientsViewProps {
   clients: ClientRecord[];
   invoices: InvoiceRecord[];
   payments: PaymentRecord[];
+  contracts?: ContractRecord[];
   onOpenCreateClient: () => void;
   onOpenCreateInvoiceForClient: (client: ClientRecord) => void;
   onOpenRecordPaymentForClient: (client: ClientRecord) => void;
+  onOpenCreateContractForClient?: (client: ClientRecord) => void;
+  onOpenClientPortal?: (client: ClientRecord) => void;
   onRefresh: () => void;
 }
 
@@ -36,9 +40,12 @@ export const AdminClientsView: React.FC<AdminClientsViewProps> = ({
   clients,
   invoices,
   payments,
+  contracts = [],
   onOpenCreateClient,
   onOpenCreateInvoiceForClient,
   onOpenRecordPaymentForClient,
+  onOpenCreateContractForClient,
+  onOpenClientPortal,
   onRefresh
 }) => {
   const [searchQuery, setSearchQuery] = useState('');
@@ -346,33 +353,108 @@ export const AdminClientsView: React.FC<AdminClientsViewProps> = ({
               )}
             </div>
 
-            <div className="pt-3 border-t border-slate-100 flex items-center justify-end space-x-2">
-              <button
-                onClick={() => {
-                  const client = selectedClient;
-                  setSelectedClient(null);
-                  onOpenCreateInvoiceForClient(client);
-                }}
-                className="px-3 py-2 bg-slate-900 hover:bg-slate-800 text-white rounded-lg text-xs font-semibold"
-              >
-                Create Invoice
-              </button>
-              <button
-                onClick={() => {
-                  const client = selectedClient;
-                  setSelectedClient(null);
-                  onOpenRecordPaymentForClient(client);
-                }}
-                className="px-3 py-2 bg-emerald-600 hover:bg-emerald-700 text-white rounded-lg text-xs font-semibold"
-              >
-                Record Payment
-              </button>
-              <button
-                onClick={() => setSelectedClient(null)}
-                className="px-3 py-2 bg-slate-100 hover:bg-slate-200 text-slate-700 rounded-lg text-xs font-semibold"
-              >
-                Close
-              </button>
+            {/* Contracts List */}
+            <div className="space-y-2">
+              <div className="flex items-center justify-between">
+                <h4 className="text-xs font-bold text-slate-800 uppercase tracking-wider">
+                  Commercial Agreements & Contracts ({contracts.filter(c => c.clientId === selectedClient.id).length})
+                </h4>
+                {onOpenCreateContractForClient && (
+                  <button
+                    onClick={() => {
+                      const client = selectedClient;
+                      setSelectedClient(null);
+                      onOpenCreateContractForClient(client);
+                    }}
+                    className="text-[11px] font-semibold text-slate-700 hover:text-slate-900 underline"
+                  >
+                    + New Contract
+                  </button>
+                )}
+              </div>
+              {contracts.filter(c => c.clientId === selectedClient.id).length === 0 ? (
+                <div className="p-3 bg-slate-50 rounded-lg text-xs text-slate-400 text-center">
+                  No contracts created for this client yet.
+                </div>
+              ) : (
+                <div className="space-y-1.5 max-h-40 overflow-y-auto">
+                  {contracts.filter(c => c.clientId === selectedClient.id).map(c => (
+                    <div key={c.id} className="p-2.5 bg-slate-50 rounded-lg flex items-center justify-between text-xs">
+                      <div>
+                        <span className="font-mono font-bold text-slate-900">{c.contractNumber}</span>
+                        <span className="text-slate-700 ml-2 font-medium">{c.title}</span>
+                      </div>
+                      <div className="flex items-center space-x-3 font-mono">
+                        <span className="font-bold text-slate-900">
+                          {c.currencyCode} {c.contractValue.toLocaleString(undefined, { minimumFractionDigits: 2 })}
+                        </span>
+                        <span className="text-[10px] font-semibold uppercase px-2 py-0.5 rounded bg-white border border-slate-200">
+                          {c.status}
+                        </span>
+                      </div>
+                    </div>
+                  ))}
+                </div>
+              )}
+            </div>
+
+            <div className="pt-3 border-t border-slate-100 flex flex-wrap items-center justify-between gap-2">
+              <div>
+                {onOpenClientPortal && (
+                  <button
+                    onClick={() => {
+                      const client = selectedClient;
+                      setSelectedClient(null);
+                      onOpenClientPortal(client);
+                    }}
+                    className="px-3 py-2 bg-slate-100 hover:bg-slate-200 text-slate-700 rounded-lg text-xs font-semibold flex items-center space-x-1.5"
+                  >
+                    <ExternalLink className="w-3.5 h-3.5" />
+                    <span>Client Portal Preview</span>
+                  </button>
+                )}
+              </div>
+
+              <div className="flex items-center space-x-2">
+                {onOpenCreateContractForClient && (
+                  <button
+                    onClick={() => {
+                      const client = selectedClient;
+                      setSelectedClient(null);
+                      onOpenCreateContractForClient(client);
+                    }}
+                    className="px-3 py-2 bg-slate-100 hover:bg-slate-200 text-slate-800 rounded-lg text-xs font-semibold"
+                  >
+                    Add Contract
+                  </button>
+                )}
+                <button
+                  onClick={() => {
+                    const client = selectedClient;
+                    setSelectedClient(null);
+                    onOpenCreateInvoiceForClient(client);
+                  }}
+                  className="px-3 py-2 bg-slate-900 hover:bg-slate-800 text-white rounded-lg text-xs font-semibold"
+                >
+                  Create Invoice
+                </button>
+                <button
+                  onClick={() => {
+                    const client = selectedClient;
+                    setSelectedClient(null);
+                    onOpenRecordPaymentForClient(client);
+                  }}
+                  className="px-3 py-2 bg-emerald-600 hover:bg-emerald-700 text-white rounded-lg text-xs font-semibold"
+                >
+                  Record Payment
+                </button>
+                <button
+                  onClick={() => setSelectedClient(null)}
+                  className="px-3 py-2 bg-slate-100 hover:bg-slate-200 text-slate-700 rounded-lg text-xs font-semibold"
+                >
+                  Close
+                </button>
+              </div>
             </div>
           </div>
         </div>

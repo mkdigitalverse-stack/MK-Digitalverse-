@@ -25,6 +25,7 @@ const TAB_TITLES: Record<AdminViewTab, { title: string; category: string }> = {
   sales_reports: { title: 'Sales Performance', category: 'Reports' },
   revenue_reports: { title: 'Finance Overview', category: 'Finance' },
   lead_reports: { title: 'Lead Intelligence', category: 'Reports' },
+  finance_contracts: { title: 'Contracts & Milestones', category: 'Finance' },
   finance_invoices: { title: 'Invoices & Billing', category: 'Finance' },
   finance_payments: { title: 'Income & Payments', category: 'Finance' },
   report_expenses: { title: 'Expenses & Costs', category: 'Finance' },

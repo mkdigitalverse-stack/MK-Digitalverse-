@@ -24,7 +24,9 @@ import {
   ExternalLink,
   ShieldCheck,
   Lock,
-  Sparkles
+  Sparkles,
+  Layers,
+  FileText
 } from 'lucide-react';
 import { CompleteLeadRecord } from '../../services/qualification';
 import { FollowUpAutomationEngine } from '../../services/followUpAutomation';
@@ -41,6 +43,7 @@ export type AdminViewTab =
   | 'sales_reports'
   | 'revenue_reports'
   | 'lead_reports'
+  | 'finance_contracts'
   | 'finance_invoices'
   | 'finance_payments'
   | 'report_expenses'
@@ -176,6 +179,12 @@ export const AdminSidebar: React.FC<AdminSidebarProps> = ({
           id: 'revenue_reports',
           label: 'Finance Overview',
           icon: DollarSign,
+          category: 'Finance'
+        },
+        {
+          id: 'finance_contracts',
+          label: 'Contracts & Milestones',
+          icon: Layers,
           category: 'Finance'
         },
         {
