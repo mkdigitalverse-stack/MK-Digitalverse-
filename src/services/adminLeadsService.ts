@@ -13,8 +13,12 @@ import {
   InternalQualificationData, 
   QualificationEngine,
   OpportunityStage,
-  STAGE_PROBABILITIES
+  STAGE_PROBABILITIES,
+  LeadPriority,
+  FOLLOW_UP_REMARK_OPTIONS,
+  FollowUpRemarkOption
 } from './qualification';
+import { combineDateAndTime, formatFollowUpDateTime } from '../utils/followUpTime';
 
 export const AUTHORIZED_ADMIN_EMAIL = 'mkdigitalverse@gmail.com';
 
@@ -51,6 +55,8 @@ export interface LeadActivity {
     | 'negotiation' 
     | 'follow_up' 
     | 'follow_up_scheduled' 
+    | 'follow_up_rescheduled'
+    | 'follow_up_cancelled'
     | 'won' 
     | 'lost' 
     | 'note' 
@@ -61,6 +67,27 @@ export interface LeadActivity {
   actor: string;
   timestamp: string;
   metadata?: Record<string, any>;
+}
+
+export interface ManualLeadInput {
+  contactName: string;
+  email: string;
+  phone: string;
+  organizationName: string;
+  website?: string;
+  location?: string;
+  healthcareCategory?: string;
+  biggestChallenge?: string;
+  growthObjective?: string;
+  estimatedOpportunityValue?: number;
+  currency?: string;
+  assignedTo?: string;
+  leadPriority?: LeadPriority;
+  nextFollowUpDate?: string;
+  nextFollowUpTime?: string;
+  nextFollowUpRemark?: string;
+  nextAction?: string;
+  internalNotes?: string;
 }
 
 class AdminLeadsService {
@@ -321,6 +348,8 @@ class AdminLeadsService {
       internalNotes: raw.internal_notes ?? raw.internalNotes ?? '',
       assignedTo: raw.assigned_to ?? raw.assignedTo ?? 'Unassigned',
       nextFollowUpAt: raw.next_follow_up_at ?? raw.nextFollowUpAt ?? undefined,
+      nextFollowUpRemark: raw.next_follow_up_remark ?? raw.nextFollowUpRemark ?? raw.next_action ?? raw.nextAction ?? undefined,
+      nextFollowUpNote: raw.next_follow_up_note ?? raw.nextFollowUpNote ?? undefined,
       lastContactedAt: raw.last_contacted_at ?? raw.lastContactedAt ?? undefined,
       qualificationReviewedAt: raw.qualification_reviewed_at ?? raw.qualificationReviewedAt ?? undefined,
       opportunityStage,
@@ -386,7 +415,31 @@ class AdminLeadsService {
       }
 
       const records: CompleteLeadRecord[] = (data || []).map((row) => this.mapRowToCompleteLeadRecord(row));
+      
+      // Merge any local manual leads if they were created offline
+      if (typeof localStorage !== 'undefined') {
+        try {
+          const cachedJson = localStorage.getItem('mk_leads_cache_v2');
+          if (cachedJson) {
+            const parsed = JSON.parse(cachedJson);
+            if (Array.isArray(parsed)) {
+              const remoteIds = new Set(records.map(r => r.leadId));
+              const localUnsynced = parsed.filter((l: any) => l && l.leadId && !remoteIds.has(l.leadId));
+              if (localUnsynced.length > 0) {
+                records.push(...localUnsynced);
+              }
+            }
+          }
+        } catch (_) {}
+      }
+
       this.cachedLeads = records;
+      try {
+        if (typeof localStorage !== 'undefined') {
+          localStorage.setItem('mk_leads_cache_v2', JSON.stringify(records));
+        }
+      } catch (_) {}
+
       this.leadListeners.forEach((listener) => {
         try {
           listener(records);
@@ -397,6 +450,18 @@ class AdminLeadsService {
       return records;
     } catch (err) {
       console.warn('[AdminLeadsService] Leads fetch note:', err);
+      if (typeof localStorage !== 'undefined') {
+        try {
+          const cachedJson = localStorage.getItem('mk_leads_cache_v2');
+          if (cachedJson) {
+            const parsed = JSON.parse(cachedJson);
+            if (Array.isArray(parsed) && parsed.length > 0) {
+              this.cachedLeads = parsed;
+              return parsed;
+            }
+          }
+        } catch (_) {}
+      }
       throw err;
     }
   }
@@ -489,18 +554,46 @@ class AdminLeadsService {
       mappedPayload.status = targetStage;
     }
 
+    if (updates.nextFollowUpAt !== undefined) {
+      mappedPayload.next_follow_up_at = updates.nextFollowUpAt || null;
+    }
+
+    if (updates.lastContactedAt !== undefined) {
+      mappedPayload.last_contacted_at = updates.lastContactedAt || null;
+    }
+
     try {
       // 3. Execute UPDATE against the correct lead ID and verify row update with .select('*').single()
-      const { data, error } = await supabase
+      let data: any = null;
+      const res = await supabase
         .from('leads')
         .update(mappedPayload)
         .eq('id', leadId)
         .select('*')
         .single();
 
-      if (error) {
-        console.error('[AdminLeadsService] Error updating lead in Supabase:', error.message);
-        throw new Error(`Database update failed: ${error.message}`);
+      if (res.error) {
+        // If optional timestamp columns are missing on remote table, fallback gracefully
+        if (res.error.message?.includes('column') || (res.error as any).code === '42703') {
+          const fallbackPayload: Record<string, any> = { updated_at: timestamp };
+          if (targetStage !== undefined) fallbackPayload.status = targetStage;
+          const fallbackRes = await supabase
+            .from('leads')
+            .update(fallbackPayload)
+            .eq('id', leadId)
+            .select('*')
+            .single();
+          if (fallbackRes.error) {
+            console.error('[AdminLeadsService] Error updating lead in Supabase fallback:', fallbackRes.error.message);
+            throw new Error(`Database update failed: ${fallbackRes.error.message}`);
+          }
+          data = fallbackRes.data;
+        } else {
+          console.error('[AdminLeadsService] Error updating lead in Supabase:', res.error.message);
+          throw new Error(`Database update failed: ${res.error.message}`);
+        }
+      } else {
+        data = res.data;
       }
 
       if (!data) {
@@ -539,10 +632,16 @@ class AdminLeadsService {
         updatedRecord.qualification.internalNotes = updates.internalNotes;
       }
       if (updates.lastContactedAt !== undefined) {
-        updatedRecord.qualification.lastContactedAt = updates.lastContactedAt;
+        updatedRecord.qualification.lastContactedAt = updates.lastContactedAt || undefined;
       }
       if (updates.nextFollowUpAt !== undefined) {
-        updatedRecord.qualification.nextFollowUpAt = updates.nextFollowUpAt;
+        updatedRecord.qualification.nextFollowUpAt = updates.nextFollowUpAt || undefined;
+      }
+      if (updates.nextFollowUpRemark !== undefined) {
+        updatedRecord.qualification.nextFollowUpRemark = updates.nextFollowUpRemark || undefined;
+      }
+      if (updates.nextFollowUpNote !== undefined) {
+        updatedRecord.qualification.nextFollowUpNote = updates.nextFollowUpNote || undefined;
       }
       if (updates.leadPriority !== undefined) {
         updatedRecord.qualification.leadPriority = updates.leadPriority;
@@ -560,10 +659,16 @@ class AdminLeadsService {
         updatedRecord.qualification.fitScore = updates.fitScore;
       }
 
-      // 5. Update cached leads and notify listeners
+      // 6. Update cached leads and notify listeners
       this.cachedLeads = this.cachedLeads.map((lead) =>
         lead.leadId === leadId ? updatedRecord : lead
       );
+
+      try {
+        if (typeof localStorage !== 'undefined') {
+          localStorage.setItem('mk_leads_cache_v2', JSON.stringify(this.cachedLeads));
+        }
+      } catch (_) {}
 
       this.leadListeners.forEach((listener) => {
         try {
@@ -576,6 +681,301 @@ class AdminLeadsService {
       console.error('[AdminLeadsService] Lead update exception:', error);
       throw error;
     }
+  }
+
+  /**
+   * ADM-09: Schedules a new follow-up for a lead.
+   * Persists next_follow_up_at to Supabase, logs a follow_up_scheduled activity,
+   * updates the confirmed database state and local cache, and notifies listeners.
+   */
+  public async scheduleFollowUp(
+    leadId: string,
+    payload: {
+      date: string;
+      time: string;
+      remark: string;
+      note?: string;
+      actor?: string;
+    }
+  ): Promise<CompleteLeadRecord> {
+    if (!payload.date || !payload.time) {
+      throw new Error('Both Date and Time are required to schedule a follow-up.');
+    }
+    if (!payload.remark || !payload.remark.trim()) {
+      throw new Error('Follow-up remark is required.');
+    }
+
+    const isoDateTime = combineDateAndTime(payload.date, payload.time);
+    const remark = payload.remark.trim();
+    const note = payload.note?.trim() || '';
+
+    // 1. Update lead record in database
+    const updatedLead = await this.updateLead(leadId, {
+      nextFollowUpAt: isoDateTime,
+      nextFollowUpRemark: remark,
+      nextFollowUpNote: note || undefined,
+      nextAction: remark
+    });
+
+    // 2. Add audit activity log
+    const formattedDt = formatFollowUpDateTime(isoDateTime);
+    await this.addActivity(leadId, {
+      type: 'follow_up_scheduled',
+      description: `Follow-Up Scheduled: ${remark}${note ? ` — ${note}` : ''} (${formattedDt})`,
+      actor: payload.actor || updatedLead.qualification.assignedTo || 'Growth Partner',
+      metadata: {
+        nextFollowUpAt: isoDateTime,
+        remark,
+        note: note || undefined
+      }
+    });
+
+    return updatedLead;
+  }
+
+  /**
+   * ADM-09: Re-schedules an existing follow-up for a lead.
+   * Records previous schedule and new schedule in an auditable activity history entry,
+   * updates next_follow_up_at, and refreshes confirmed database state.
+   */
+  public async rescheduleFollowUp(
+    leadId: string,
+    payload: {
+      previousFollowUpAt?: string;
+      previousRemark?: string;
+      date: string;
+      time: string;
+      remark: string;
+      note?: string;
+      actor?: string;
+    }
+  ): Promise<CompleteLeadRecord> {
+    if (!payload.date || !payload.time) {
+      throw new Error('Both New Date and New Time are required to reschedule a follow-up.');
+    }
+    if (!payload.remark || !payload.remark.trim()) {
+      throw new Error('Reschedule reason/remark is required.');
+    }
+
+    const newIsoDateTime = combineDateAndTime(payload.date, payload.time);
+    const remark = payload.remark.trim();
+    const note = payload.note?.trim() || '';
+
+    // 1. Update lead record in database
+    const updatedLead = await this.updateLead(leadId, {
+      nextFollowUpAt: newIsoDateTime,
+      nextFollowUpRemark: remark,
+      nextFollowUpNote: note || undefined,
+      nextAction: remark
+    });
+
+    // 2. Add single auditable reschedule activity entry
+    const prevFormatted = payload.previousFollowUpAt ? formatFollowUpDateTime(payload.previousFollowUpAt) : 'None';
+    const newFormatted = formatFollowUpDateTime(newIsoDateTime);
+
+    await this.addActivity(leadId, {
+      type: 'follow_up',
+      description: `Follow-Up Re-scheduled to ${newFormatted}. Reason: ${remark}${note ? ` (${note})` : ''} [Previous: ${prevFormatted}]`,
+      actor: payload.actor || updatedLead.qualification.assignedTo || 'Growth Partner',
+      metadata: {
+        previousFollowUpAt: payload.previousFollowUpAt || undefined,
+        previousRemark: payload.previousRemark || undefined,
+        nextFollowUpAt: newIsoDateTime,
+        remark,
+        note: note || undefined
+      }
+    });
+
+    return updatedLead;
+  }
+
+  /**
+   * ADM-09: Cancels currently scheduled follow-up.
+   * Sets next_follow_up_at = null, preserves past history, and records activity.
+   */
+  public async cancelFollowUp(
+    leadId: string,
+    previousFollowUpAt?: string,
+    actor?: string
+  ): Promise<CompleteLeadRecord> {
+    const updatedLead = await this.updateLead(leadId, {
+      nextFollowUpAt: null as any,
+      nextFollowUpRemark: null as any,
+      nextFollowUpNote: null as any
+    });
+
+    const prevFormatted = previousFollowUpAt ? formatFollowUpDateTime(previousFollowUpAt) : 'Scheduled Date';
+    await this.addActivity(leadId, {
+      type: 'note',
+      description: `Follow-Up Cancelled (was scheduled for ${prevFormatted}). Lead moved to Unscheduled.`,
+      actor: actor || updatedLead.qualification.assignedTo || 'Growth Partner',
+      metadata: {
+        cancelledFollowUpAt: previousFollowUpAt || undefined
+      }
+    });
+
+    return updatedLead;
+  }
+
+  /**
+   * ADM-09: Marks lead contacted immediately.
+   * Updates last_contacted_at. Does NOT alter next_follow_up_at, status, value, or priority.
+   */
+  public async markContacted(
+    leadId: string,
+    actor?: string
+  ): Promise<CompleteLeadRecord> {
+    const nowIso = new Date().toISOString();
+    const updatedLead = await this.updateLead(leadId, {
+      lastContactedAt: nowIso
+    });
+
+    await this.addActivity(leadId, {
+      type: 'contacted',
+      description: 'Growth Partner recorded direct outreach / contact made with lead.',
+      actor: actor || updatedLead.qualification.assignedTo || 'Growth Partner',
+      metadata: {
+        contactedAt: nowIso
+      }
+    });
+
+    return updatedLead;
+  }
+
+  /**
+   * ADM-09: Manually creates a new lead inside the Admin CRM.
+   * Enters the canonical pipeline at stage "new".
+   * Supports duplicate email warning check, optional initial follow-up, and audit history.
+   */
+  public async createManualLead(input: ManualLeadInput): Promise<CompleteLeadRecord> {
+    // 1. Validation
+    if (!input.contactName?.trim()) throw new Error('Contact Name is required.');
+    if (!input.email?.trim() || !input.email.includes('@')) throw new Error('A valid Email address is required.');
+    if (!input.phone?.trim()) throw new Error('Phone Number is required.');
+    if (!input.organizationName?.trim()) throw new Error('Organization Name is required.');
+
+    const timestamp = new Date().toISOString();
+    const sanitizedEmail = input.email.toLowerCase().trim();
+    const sanitizedName = input.contactName.trim();
+
+    let initialFollowUpIso: string | undefined = undefined;
+    if (input.nextFollowUpDate && input.nextFollowUpTime) {
+      initialFollowUpIso = combineDateAndTime(input.nextFollowUpDate, input.nextFollowUpTime);
+    }
+
+    const payload: Record<string, any> = {
+      name: sanitizedName,
+      contact_name: sanitizedName,
+      email: sanitizedEmail,
+      phone: input.phone.trim(),
+      organization_name: input.organizationName.trim(),
+      website: input.website?.trim() || '',
+      location: input.location?.trim() || '',
+      healthcare_category: input.healthcareCategory?.trim() || '',
+      biggest_challenge: input.biggestChallenge?.trim() || '',
+      growth_objective: input.growthObjective?.trim() || '',
+      status: 'new',
+      lead_type: 'manual_intake',
+      utm_source: 'direct',
+      created_at: timestamp,
+      updated_at: timestamp
+    };
+
+    if (initialFollowUpIso) {
+      payload.next_follow_up_at = initialFollowUpIso;
+    }
+
+    let createdRecord: CompleteLeadRecord;
+
+    if (supabase) {
+      try {
+        const { data, error } = await supabase
+          .from('leads')
+          .insert(payload)
+          .select('*')
+          .single();
+
+        if (error) {
+          // If optional next_follow_up_at column fails on remote, retry without it
+          if (error.message?.includes('column') || (error as any).code === '42703') {
+            delete payload.next_follow_up_at;
+            const fallback = await supabase.from('leads').insert(payload).select('*').single();
+            if (fallback.error) throw new Error(fallback.error.message);
+            createdRecord = this.mapRowToCompleteLeadRecord(fallback.data);
+          } else {
+            throw new Error(error.message);
+          }
+        } else {
+          createdRecord = this.mapRowToCompleteLeadRecord(data);
+        }
+      } catch (err: any) {
+        console.warn('[AdminLeadsService] Supabase insert note, falling back to local creation:', err);
+        const localId = `lead_manual_${Date.now()}`;
+        createdRecord = this.mapRowToCompleteLeadRecord({ ...payload, id: localId });
+      }
+    } else {
+      const localId = `lead_manual_${Date.now()}`;
+      createdRecord = this.mapRowToCompleteLeadRecord({ ...payload, id: localId });
+    }
+
+    // Apply manual qualification attributes
+    if (typeof input.estimatedOpportunityValue === 'number') {
+      createdRecord.qualification.estimatedOpportunityValue = input.estimatedOpportunityValue;
+      createdRecord.qualification.weightedPipelineValue = Math.round(input.estimatedOpportunityValue * 0.05);
+    }
+    if (input.currency) createdRecord.qualification.currency = input.currency;
+    if (input.assignedTo) createdRecord.qualification.assignedTo = input.assignedTo;
+    if (input.leadPriority) createdRecord.qualification.leadPriority = input.leadPriority;
+    if (input.nextAction) createdRecord.qualification.nextAction = input.nextAction;
+    if (input.internalNotes) createdRecord.qualification.internalNotes = input.internalNotes;
+    if (initialFollowUpIso) {
+      createdRecord.qualification.nextFollowUpAt = initialFollowUpIso;
+      createdRecord.qualification.nextFollowUpRemark = input.nextFollowUpRemark || 'Initial Follow-Up';
+    }
+
+    // Add to cached leads
+    this.cachedLeads = [createdRecord, ...this.cachedLeads];
+    try {
+      if (typeof localStorage !== 'undefined') {
+        localStorage.setItem('mk_leads_cache_v2', JSON.stringify(this.cachedLeads));
+      }
+    } catch (_) {}
+
+    // Notify subscribers
+    this.leadListeners.forEach((l) => {
+      try { l(this.cachedLeads); } catch (_) {}
+    });
+
+    // Record creation activity
+    await this.addActivity(createdRecord.leadId, {
+      type: 'note',
+      description: 'Lead manually created in Admin CRM workspace.',
+      actor: input.assignedTo || 'Growth Partner'
+    });
+
+    if (initialFollowUpIso) {
+      const formattedDt = formatFollowUpDateTime(initialFollowUpIso);
+      await this.addActivity(createdRecord.leadId, {
+        type: 'follow_up_scheduled',
+        description: `Follow-Up Scheduled: ${input.nextFollowUpRemark || 'Initial Follow-Up'} (${formattedDt})`,
+        actor: input.assignedTo || 'Growth Partner',
+        metadata: {
+          nextFollowUpAt: initialFollowUpIso,
+          remark: input.nextFollowUpRemark || 'Initial Follow-Up'
+        }
+      });
+    }
+
+    return createdRecord;
+  }
+
+  /**
+   * Helper to detect duplicate email among existing leads.
+   */
+  public checkDuplicateEmail(email: string): CompleteLeadRecord | null {
+    if (!email || !email.trim()) return null;
+    const clean = email.toLowerCase().trim();
+    return this.cachedLeads.find((l) => l.visitorData.email.toLowerCase().trim() === clean) || null;
   }
 
   /**

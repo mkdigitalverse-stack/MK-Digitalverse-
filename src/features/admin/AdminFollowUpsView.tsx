@@ -20,20 +20,33 @@ import {
   Flame,
   Check,
   Zap,
-  PhoneCall
+  PhoneCall,
+  RotateCcw,
+  CalendarX
 } from 'lucide-react';
+import { 
+  formatFollowUpDate, 
+  formatFollowUpTime, 
+  formatFollowUpDateTime,
+  getDateInputValue
+} from '../../utils/followUpTime';
+import { AdminScheduleFollowUpModal } from './AdminScheduleFollowUpModal';
 
 interface AdminFollowUpsViewProps {
   leads: CompleteLeadRecord[];
   onSelectLead: (lead: CompleteLeadRecord) => void;
+  onLeadUpdated?: (lead: CompleteLeadRecord) => void;
 }
 
 export const AdminFollowUpsView: React.FC<AdminFollowUpsViewProps> = ({
   leads,
-  onSelectLead
+  onSelectLead,
+  onLeadUpdated
 }) => {
   const [updatingLeadId, setUpdatingLeadId] = useState<string | null>(null);
   const [actionSuccessMessage, setActionSuccessMessage] = useState<string | null>(null);
+  const [activeScheduleLead, setActiveScheduleLead] = useState<{ lead: CompleteLeadRecord; mode: 'schedule' | 'reschedule' } | null>(null);
+  const [leadToCancel, setLeadToCancel] = useState<CompleteLeadRecord | null>(null);
 
   const now = new Date();
   const healthSummary: PipelineHealthSummary = FollowUpAutomationEngine.calculatePipelineHealth(leads, now);
@@ -136,17 +149,8 @@ export const AdminFollowUpsView: React.FC<AdminFollowUpsViewProps> = ({
   const handleMarkContacted = async (lead: CompleteLeadRecord) => {
     try {
       setUpdatingLeadId(lead.leadId);
-      const nowIso = new Date().toISOString();
-      await adminLeadsService.updateLead(lead.leadId, {
-        lastContactedAt: nowIso,
-        status: lead.status === 'new' ? 'contacted' : lead.status,
-        opportunityStage: lead.qualification.opportunityStage === 'new' ? 'contacted' : lead.qualification.opportunityStage
-      });
-      await adminLeadsService.addActivity(lead.leadId, {
-        type: 'contact_made',
-        description: 'Growth Partner recorded direct outreach / contact made with client.',
-        actor: lead.qualification.assignedTo || 'Growth Partner'
-      });
+      const updated = await adminLeadsService.markContacted(lead.leadId, lead.qualification.assignedTo || 'Growth Partner');
+      onLeadUpdated?.(updated);
       setActionSuccessMessage(`Contact logged for ${lead.visitorData.organizationName || lead.visitorData.contactName}`);
       setTimeout(() => setActionSuccessMessage(null), 3000);
     } catch (err) {
@@ -154,6 +158,59 @@ export const AdminFollowUpsView: React.FC<AdminFollowUpsViewProps> = ({
     } finally {
       setUpdatingLeadId(null);
     }
+  };
+
+  const handleCancelFollowUp = (lead: CompleteLeadRecord) => {
+    setLeadToCancel(lead);
+  };
+
+  const handleConfirmCancel = async () => {
+    if (!leadToCancel) return;
+    const lead = leadToCancel;
+    try {
+      setUpdatingLeadId(lead.leadId);
+      const updated = await adminLeadsService.cancelFollowUp(
+        lead.leadId,
+        lead.qualification.nextFollowUpAt,
+        lead.qualification.assignedTo || 'Growth Partner'
+      );
+      onLeadUpdated?.(updated);
+      setActionSuccessMessage(`Follow-up cancelled for ${lead.visitorData.organizationName || lead.visitorData.contactName}`);
+      setTimeout(() => setActionSuccessMessage(null), 3000);
+    } catch (err: any) {
+      console.error('Failed to cancel follow-up:', err);
+    } finally {
+      setUpdatingLeadId(null);
+      setLeadToCancel(null);
+    }
+  };
+
+  const handleSaveSchedule = async (
+    leadId: string,
+    payload: { date: string; time: string; remark: string; note?: string }
+  ) => {
+    const lead = leads.find(l => l.leadId === leadId);
+    const updated = await adminLeadsService.scheduleFollowUp(leadId, {
+      ...payload,
+      actor: lead?.qualification.assignedTo || 'Growth Partner'
+    });
+    onLeadUpdated?.(updated);
+    setActionSuccessMessage('Follow-up scheduled successfully.');
+    setTimeout(() => setActionSuccessMessage(null), 3000);
+  };
+
+  const handleSaveReschedule = async (
+    leadId: string,
+    payload: { previousFollowUpAt?: string; previousRemark?: string; date: string; time: string; remark: string; note?: string }
+  ) => {
+    const lead = leads.find(l => l.leadId === leadId);
+    const updated = await adminLeadsService.rescheduleFollowUp(leadId, {
+      ...payload,
+      actor: lead?.qualification.assignedTo || 'Growth Partner'
+    });
+    onLeadUpdated?.(updated);
+    setActionSuccessMessage('Follow-up re-scheduled successfully.');
+    setTimeout(() => setActionSuccessMessage(null), 3000);
   };
 
   const handleQuickSchedule = async (lead: CompleteLeadRecord, daysFromNow: number) => {
@@ -164,15 +221,14 @@ export const AdminFollowUpsView: React.FC<AdminFollowUpsViewProps> = ({
       targetDate.setHours(10, 0, 0, 0); // Default to 10:00 AM
       const isoDate = targetDate.toISOString();
 
-      await adminLeadsService.updateLead(lead.leadId, {
-        nextFollowUpAt: isoDate
-      });
-      await adminLeadsService.addActivity(lead.leadId, {
-        type: 'follow_up_scheduled',
-        description: `Follow-up quick-scheduled for ${targetDate.toLocaleDateString()} 10:00 AM`,
+      const updated = await adminLeadsService.scheduleFollowUp(lead.leadId, {
+        date: getDateInputValue(isoDate),
+        time: '10:00',
+        remark: 'Follow-Up Scheduled',
         actor: lead.qualification.assignedTo || 'Growth Partner'
       });
-      setActionSuccessMessage(`Follow-up scheduled for ${targetDate.toLocaleDateString()}`);
+      onLeadUpdated?.(updated);
+      setActionSuccessMessage(`Follow-up scheduled for ${formatFollowUpDate(isoDate)}`);
       setTimeout(() => setActionSuccessMessage(null), 3000);
     } catch (err) {
       console.error('Failed to schedule follow-up:', err);
@@ -391,16 +447,54 @@ export const AdminFollowUpsView: React.FC<AdminFollowUpsViewProps> = ({
                         </div>
 
                         <div>
-                          <span className="text-[10px] text-slate-400 block uppercase font-bold lg:text-right">Target Date</span>
+                          <span className="text-[10px] text-slate-400 block uppercase font-bold lg:text-right">Follow-Up Schedule</span>
                           <span className="font-mono font-bold text-xs text-slate-900 lg:text-right block">
                             {lead.qualification.nextFollowUpAt
-                              ? new Date(lead.qualification.nextFollowUpAt).toLocaleDateString()
-                              : 'Not Scheduled'}
+                              ? formatFollowUpDateTime(lead.qualification.nextFollowUpAt)
+                              : 'Unscheduled'}
                           </span>
+                          {lead.qualification.nextFollowUpRemark && (
+                            <span className="text-[11px] font-medium text-amber-800 lg:text-right block">
+                              {lead.qualification.nextFollowUpRemark}
+                            </span>
+                          )}
                         </div>
 
                         {/* Direct Quick Actions */}
-                        <div className="flex flex-wrap items-center gap-2 pt-1">
+                        <div className="flex flex-wrap items-center gap-1.5 pt-1">
+                          {lead.qualification.nextFollowUpAt ? (
+                            <>
+                              <button
+                                disabled={isUpdating}
+                                onClick={() => setActiveScheduleLead({ lead, mode: 'reschedule' })}
+                                className="px-2.5 py-1.5 bg-amber-600 hover:bg-amber-700 text-white rounded text-[11px] font-bold shadow-xs transition-colors flex items-center space-x-1"
+                                title="Re-schedule this follow-up"
+                              >
+                                <RotateCcw className="w-3 h-3" />
+                                <span>Re-schedule</span>
+                              </button>
+                              <button
+                                disabled={isUpdating}
+                                onClick={() => handleCancelFollowUp(lead)}
+                                className="px-2 py-1.5 bg-slate-100 hover:bg-red-50 text-slate-600 hover:text-red-700 rounded text-[11px] font-semibold border border-slate-200 transition-colors flex items-center space-x-1"
+                                title="Cancel follow-up"
+                              >
+                                <CalendarX className="w-3 h-3" />
+                                <span>Cancel</span>
+                              </button>
+                            </>
+                          ) : (
+                            <button
+                              disabled={isUpdating}
+                              onClick={() => setActiveScheduleLead({ lead, mode: 'schedule' })}
+                              className="px-2.5 py-1.5 bg-amber-600 hover:bg-amber-700 text-white rounded text-[11px] font-bold shadow-xs transition-colors flex items-center space-x-1"
+                              title="Schedule a follow-up date and time"
+                            >
+                              <Calendar className="w-3 h-3" />
+                              <span>Schedule</span>
+                            </button>
+                          )}
+
                           {/* Mark Contacted Button */}
                           <button
                             disabled={isUpdating}
@@ -409,46 +503,13 @@ export const AdminFollowUpsView: React.FC<AdminFollowUpsViewProps> = ({
                             title="Record contact made today"
                           >
                             <PhoneCall className="w-3 h-3 text-slate-600" />
-                            <span>Mark Contacted</span>
+                            <span>Contacted</span>
                           </button>
-
-                          {/* Quick Schedule Options */}
-                          <div className="flex items-center space-x-1 bg-slate-50 border border-slate-200 p-1 rounded">
-                            <span className="text-[9px] font-bold uppercase text-slate-400 px-1">Schedule:</span>
-                            <button
-                              disabled={isUpdating}
-                              onClick={() => handleQuickSchedule(lead, 0)}
-                              className="px-1.5 py-0.5 text-[10px] font-bold bg-white hover:bg-amber-50 text-amber-800 rounded border border-slate-200 shadow-2xs"
-                            >
-                              Today
-                            </button>
-                            <button
-                              disabled={isUpdating}
-                              onClick={() => handleQuickSchedule(lead, 1)}
-                              className="px-1.5 py-0.5 text-[10px] font-bold bg-white hover:bg-amber-50 text-amber-800 rounded border border-slate-200 shadow-2xs"
-                            >
-                              Tomorrow
-                            </button>
-                            <button
-                              disabled={isUpdating}
-                              onClick={() => handleQuickSchedule(lead, 3)}
-                              className="px-1.5 py-0.5 text-[10px] font-bold bg-white hover:bg-amber-50 text-amber-800 rounded border border-slate-200 shadow-2xs"
-                            >
-                              +3d
-                            </button>
-                            <button
-                              disabled={isUpdating}
-                              onClick={() => handleQuickSchedule(lead, 7)}
-                              className="px-1.5 py-0.5 text-[10px] font-bold bg-white hover:bg-amber-50 text-amber-800 rounded border border-slate-200 shadow-2xs"
-                            >
-                              +7d
-                            </button>
-                          </div>
 
                           {/* Full Manage Lead Button */}
                           <button
                             onClick={() => onSelectLead(lead)}
-                            className="px-3 py-1.5 bg-amber-600 hover:bg-amber-700 text-white rounded text-[11px] font-bold shadow-xs transition-colors flex items-center space-x-1"
+                            className="px-2.5 py-1.5 bg-slate-900 hover:bg-slate-800 text-white rounded text-[11px] font-bold shadow-xs transition-colors flex items-center space-x-1"
                           >
                             <span>Manage</span>
                             <ArrowRight className="w-3.5 h-3.5" />
@@ -464,6 +525,56 @@ export const AdminFollowUpsView: React.FC<AdminFollowUpsViewProps> = ({
           </div>
         );
       })}
+
+      {/* Cancellation Confirmation Dialog (ADM-09) */}
+      {leadToCancel && (
+        <div className="fixed inset-0 z-50 bg-slate-950/60 backdrop-blur-xs flex items-center justify-center p-4">
+          <div className="w-full max-w-md bg-white rounded-xl shadow-2xl border border-slate-200 p-5 space-y-4 animate-in fade-in zoom-in-95">
+            <div className="flex items-start space-x-3">
+              <div className="w-10 h-10 rounded-full bg-red-100 flex items-center justify-center text-red-600 shrink-0">
+                <CalendarX className="w-5 h-5" />
+              </div>
+              <div className="flex-1">
+                <h3 className="text-sm font-bold text-slate-900">Cancel Follow-Up</h3>
+                <p className="text-xs text-slate-700 mt-1 font-semibold">
+                  Cancel the currently scheduled follow-up?
+                </p>
+                <p className="text-[11px] text-slate-500 mt-1">
+                  The lead will be moved to <strong>Unscheduled</strong>. Historical activity and notes will be preserved.
+                </p>
+              </div>
+            </div>
+            <div className="flex items-center justify-end space-x-2 pt-2 border-t border-slate-100">
+              <button
+                type="button"
+                onClick={() => setLeadToCancel(null)}
+                className="px-3.5 py-1.5 rounded-lg bg-slate-100 hover:bg-slate-200 text-slate-700 text-xs font-semibold"
+              >
+                Keep Follow-Up
+              </button>
+              <button
+                type="button"
+                onClick={handleConfirmCancel}
+                className="px-4 py-1.5 rounded-lg bg-red-600 hover:bg-red-700 text-white text-xs font-bold shadow-xs"
+              >
+                Confirm Cancel
+              </button>
+            </div>
+          </div>
+        </div>
+      )}
+
+      {/* Schedule / Re-Schedule Modal (ADM-09) */}
+      {activeScheduleLead && (
+        <AdminScheduleFollowUpModal
+          isOpen={true}
+          lead={activeScheduleLead.lead}
+          mode={activeScheduleLead.mode}
+          onClose={() => setActiveScheduleLead(null)}
+          onSaveSchedule={handleSaveSchedule}
+          onSaveReschedule={handleSaveReschedule}
+        />
+      )}
     </div>
   );
 };

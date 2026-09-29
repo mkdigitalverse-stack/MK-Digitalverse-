@@ -263,6 +263,13 @@ export const AdminLeadsPage: React.FC<AdminLeadsPageProps> = ({ onReturnHome }) 
     setSelectedLead(prev => (prev && prev.leadId === leadId ? updatedLead : prev));
   };
 
+  const handleLeadUpdated = (updatedRecord: CompleteLeadRecord) => {
+    setLeads(prevLeads =>
+      prevLeads.map(l => (l.leadId === updatedRecord.leadId ? updatedRecord : l))
+    );
+    setSelectedLead(prev => (prev && prev.leadId === updatedRecord.leadId ? updatedRecord : prev));
+  };
+
   const handleUpdateStage = async (leadId: string, newStage: OpportunityStage) => {
     const targetLead = leads.find(l => l.leadId === leadId);
     const estVal = targetLead?.qualification.estimatedOpportunityValue || 0;
@@ -649,6 +656,7 @@ export const AdminLeadsPage: React.FC<AdminLeadsPageProps> = ({ onReturnHome }) 
               <AdminFollowUpsView
                 leads={leads}
                 onSelectLead={setSelectedLead}
+                onLeadUpdated={handleLeadUpdated}
               />
             )}
 
@@ -819,6 +827,7 @@ export const AdminLeadsPage: React.FC<AdminLeadsPageProps> = ({ onReturnHome }) 
               lead={selectedLead}
               onClose={() => setSelectedLead(null)}
               onSaveLead={handleSaveLead}
+              onLeadUpdated={handleLeadUpdated}
             />
 
             {/* Finance Modals */}

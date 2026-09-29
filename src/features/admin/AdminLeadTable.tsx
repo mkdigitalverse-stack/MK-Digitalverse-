@@ -11,6 +11,11 @@ import {
   Square,
   Check
 } from 'lucide-react';
+import { 
+  formatFollowUpDate, 
+  formatFollowUpTime, 
+  getFollowUpStatus 
+} from '../../utils/followUpTime';
 
 interface AdminLeadTableProps {
   leads: CompleteLeadRecord[];
@@ -251,6 +256,7 @@ export const AdminLeadTable: React.FC<AdminLeadTableProps> = ({
                 <th className="py-3 px-4">Lead Type</th>
                 <th className="py-3 px-4">Fit Score</th>
                 <th className="py-3 px-4">Stage</th>
+                <th className="py-3 px-4">Next Follow-Up</th>
                 <th className="py-3 px-4">Source</th>
                 <th className="py-3 px-4">Created</th>
                 <th className="py-3 px-4 text-right">Action</th>
@@ -332,6 +338,37 @@ export const AdminLeadTable: React.FC<AdminLeadTableProps> = ({
                     {/* Stage (Single source of truth: public.leads.status) */}
                     <td className="py-3 px-4 whitespace-nowrap">
                       {renderStatusBadge(lead.status)}
+                    </td>
+
+                    {/* Next Follow-Up (ADM-09) */}
+                    <td className="py-3 px-4 whitespace-nowrap">
+                      {lead.qualification.nextFollowUpAt ? (
+                        <div>
+                          <div className="flex items-center space-x-1.5">
+                            <span className={`text-[10px] font-bold px-1.5 py-0.5 rounded border ${
+                              getFollowUpStatus(lead.qualification.nextFollowUpAt) === 'OVERDUE'
+                                ? 'bg-red-100 text-red-800 border-red-200'
+                                : getFollowUpStatus(lead.qualification.nextFollowUpAt) === 'DUE_TODAY'
+                                ? 'bg-amber-100 text-amber-900 border-amber-200'
+                                : 'bg-emerald-50 text-emerald-800 border-emerald-200'
+                            }`}>
+                              {getFollowUpStatus(lead.qualification.nextFollowUpAt).replace('_', ' ')}
+                            </span>
+                            <span className="font-mono text-[11px] text-slate-800 font-semibold">
+                              {formatFollowUpDate(lead.qualification.nextFollowUpAt)}
+                            </span>
+                          </div>
+                          {lead.qualification.nextFollowUpRemark && (
+                            <div className="text-[10px] text-slate-500 truncate max-w-[130px] mt-0.5">
+                              {lead.qualification.nextFollowUpRemark}
+                            </div>
+                          )}
+                        </div>
+                      ) : (
+                        <span className="text-[10px] text-slate-400 bg-slate-100 px-2 py-0.5 rounded font-medium">
+                          Unscheduled
+                        </span>
+                      )}
                     </td>
 
                     {/* Source */}
@@ -444,6 +481,31 @@ export const AdminLeadTable: React.FC<AdminLeadTableProps> = ({
                       {formatDate(lead.createdAt)}
                     </span>
                   </div>
+                </div>
+
+                {/* Follow-up Status Strip (ADM-09) */}
+                <div className="flex items-center justify-between px-2.5 py-1.5 rounded-lg bg-slate-50 border border-slate-200/80 text-xs">
+                  <div className="flex items-center space-x-1.5">
+                    <span className="text-[10px] uppercase font-bold text-slate-500">Next Follow-Up:</span>
+                    {lead.qualification.nextFollowUpAt ? (
+                      <span className={`text-[10px] font-bold px-1.5 py-0.5 rounded border ${
+                        getFollowUpStatus(lead.qualification.nextFollowUpAt) === 'OVERDUE'
+                          ? 'bg-red-100 text-red-800 border-red-200'
+                          : getFollowUpStatus(lead.qualification.nextFollowUpAt) === 'DUE_TODAY'
+                          ? 'bg-amber-100 text-amber-900 border-amber-200'
+                          : 'bg-emerald-50 text-emerald-800 border-emerald-200'
+                      }`}>
+                        {getFollowUpStatus(lead.qualification.nextFollowUpAt).replace('_', ' ')}
+                      </span>
+                    ) : (
+                      <span className="text-[10px] text-slate-400 font-medium">Unscheduled</span>
+                    )}
+                  </div>
+                  {lead.qualification.nextFollowUpAt && (
+                    <span className="font-mono text-[11px] font-semibold text-slate-800">
+                      {formatFollowUpDate(lead.qualification.nextFollowUpAt)} · {formatFollowUpTime(lead.qualification.nextFollowUpAt)}
+                    </span>
+                  )}
                 </div>
 
                 {/* Expandable Secondary Details (Accordion Toggle) */}

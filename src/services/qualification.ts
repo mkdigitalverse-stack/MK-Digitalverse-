@@ -84,6 +84,26 @@ export const STAGE_PROBABILITIES: Record<string, number> = {
   lost: 0.00
 };
 
+export const FOLLOW_UP_REMARK_OPTIONS = [
+  'Call Back Requested',
+  'Follow-Up on Decision',
+  'Proposal Shared',
+  'Proposal Discussion Pending',
+  'Waiting for Management Approval',
+  'Waiting for Internal Discussion',
+  'Interested — Needs More Time',
+  'Budget Discussion Pending',
+  'Documents / Information Pending',
+  'Meeting Requested',
+  'Meeting Scheduled',
+  'No Response',
+  'Not Reachable',
+  'Reschedule Requested',
+  'Other'
+] as const;
+
+export type FollowUpRemarkOption = typeof FOLLOW_UP_REMARK_OPTIONS[number];
+
 // 3. INTERNAL QUALIFICATION DATA INTERFACE
 export interface InternalQualificationData {
   fitStatus: FitStatus;
@@ -106,6 +126,8 @@ export interface InternalQualificationData {
   internalNotes?: string;
   assignedTo?: string;
   nextFollowUpAt?: string;
+  nextFollowUpRemark?: string;
+  nextFollowUpNote?: string;
   lastContactedAt?: string;
   qualificationReviewedAt?: string;
   opportunityStage: OpportunityStage;

@@ -132,8 +132,8 @@ export class FollowUpAutomationEngine {
     const activityStatus = isClosed ? 'active' : this.getActivityStatus(daysInactive);
     const derivedNextAction = this.deriveNextAction(lead);
 
-    const startOfToday = new Date(now.getFullYear(), now.getMonth(), now.getDate()).getTime();
-    const endOfToday = startOfToday + (24 * 3600 * 1000) - 1;
+    const nowTime = now.getTime();
+    const endOfToday = new Date(now.getFullYear(), now.getMonth(), now.getDate(), 23, 59, 59, 999).getTime();
 
     let classification: FollowUpClassification = 'NO_FOLLOW_UP';
 
@@ -141,20 +141,28 @@ export class FollowUpAutomationEngine {
     if (fAt) {
       try {
         const fTime = new Date(fAt).getTime();
-        if (fTime < startOfToday) {
+        if (isNaN(fTime)) {
+          classification = 'NO_FOLLOW_UP';
+        } else if (fTime < nowTime) {
+          // OVERDUE: next_follow_up_at < current time
           classification = 'OVERDUE';
-        } else if (fTime >= startOfToday && fTime <= endOfToday) {
+        } else if (fTime <= endOfToday) {
+          // DUE TODAY: Follow-up occurs today but has not yet passed
           classification = 'DUE_TODAY';
         } else {
+          // UPCOMING: Future date/time
           classification = 'UPCOMING';
         }
       } catch (_) {
         classification = 'NO_FOLLOW_UP';
       }
+    } else {
+      classification = 'NO_FOLLOW_UP';
     }
 
-    // Check if stale (active opportunity, no activity for 7+ days)
-    if (!isClosed && daysInactive >= 7 && classification !== 'OVERDUE' && classification !== 'DUE_TODAY') {
+    // Check if stale (active opportunity, no activity for 7+ days, AND unscheduled)
+    // "Do not allow a stale/health classification to incorrectly override a genuinely scheduled future follow-up."
+    if (!isClosed && daysInactive >= 7 && classification === 'NO_FOLLOW_UP') {
       classification = 'STALE_OPPORTUNITY';
     }
 
@@ -230,8 +238,8 @@ export class FollowUpAutomationEngine {
       const evalResult = this.evaluateOpportunity(lead, now);
       if (evalResult.classification === 'OVERDUE') overdueCount++;
       if (evalResult.classification === 'DUE_TODAY') dueTodayCount++;
-      if (evalResult.classification === 'STALE_OPPORTUNITY' || evalResult.daysSinceLastActivity >= 7) staleCount++;
-      if (!lead.qualification.nextFollowUpAt) unscheduledCount++;
+      if (evalResult.classification === 'STALE_OPPORTUNITY') staleCount++;
+      if (evalResult.classification === 'NO_FOLLOW_UP') unscheduledCount++;
 
       if (evalResult.riskLevel === 'high') highRiskCount++;
       else if (evalResult.riskLevel === 'medium') mediumRiskCount++;
