@@ -243,12 +243,14 @@ export class GrowthAnalyticsService {
       { key: 'won', name: 'Closed Won Clients' }
     ];
 
-    const stages: FunnelStageMetric[] = stageKeys.map((s, idx) => {
-      const count = leads.filter(l => l.qualification.opportunityStage === s.key).length;
+    const stages: FunnelStageMetric[] = [];
+    for (let idx = 0; idx < stageKeys.length; idx++) {
+      const s = stageKeys[idx];
+      const count = leads.filter(l => (l.status || l.qualification.opportunityStage) === s.key).length;
       const percentageOfTotal = totalLeads > 0 ? (count / totalLeads) * 100 : 0;
       
       const val = leads
-        .filter(l => l.qualification.opportunityStage === s.key)
+        .filter(l => (l.status || l.qualification.opportunityStage) === s.key)
         .reduce((sum, l) => {
           if (s.key === 'won') return sum + (l.qualification.finalContractValue || l.qualification.estimatedOpportunityValue || 0);
           if (s.key === 'proposal') return sum + (l.qualification.proposalValue || l.qualification.estimatedOpportunityValue || 0);
@@ -264,15 +266,15 @@ export class GrowthAnalyticsService {
         }
       }
 
-      return {
+      stages.push({
         stageKey: s.key,
         stageName: s.name,
         count,
         percentageOfTotal,
         dropoffRate,
         value: val
-      };
-    });
+      });
+    }
 
     return {
       totalVisitorsEstimated: totalLeads * 12, // Standard baseline multiplier estimation if web analytics not linked

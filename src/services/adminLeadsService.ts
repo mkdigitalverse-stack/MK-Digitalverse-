@@ -157,20 +157,52 @@ class AdminLeadsService {
         'Admin',
     });
 
+    let isSubscribed = true;
+
+    // 1. Immediate initial check from existing session
+    supabase.auth.getSession().then(async ({ data: { session }, error }) => {
+      if (!isSubscribed) return;
+      if (error) {
+        console.warn('[AdminLeadsService] Initial getSession warning:', error.message);
+        callback(null, false);
+        return;
+      }
+      const user = session?.user ?? null;
+      if (!user) {
+        callback(null, false);
+      } else {
+        const adminUser = formatAdminUser(user);
+        const isAdmin = await this.checkAdminPermission(user);
+        if (isSubscribed) {
+          callback(adminUser, isAdmin);
+        }
+      }
+    }).catch((err) => {
+      if (isSubscribed) {
+        console.warn('[AdminLeadsService] Initial getSession note:', err);
+        callback(null, false);
+      }
+    });
+
+    // 2. Continuous real-time subscription to auth state changes
     const { data: { subscription } } = supabase.auth.onAuthStateChange(
       async (_event, session) => {
+        if (!isSubscribed) return;
         const user = session?.user ?? null;
         if (!user) {
           callback(null, false);
         } else {
           const adminUser = formatAdminUser(user);
           const isAdmin = await this.checkAdminPermission(user);
-          callback(adminUser, isAdmin);
+          if (isSubscribed) {
+            callback(adminUser, isAdmin);
+          }
         }
       }
     );
 
     return () => {
+      isSubscribed = false;
       subscription.unsubscribe();
     };
   }
@@ -182,7 +214,7 @@ class AdminLeadsService {
   public async signInWithGoogle(): Promise<void> {
     const client = getSupabaseClient();
     const redirectTo = typeof window !== 'undefined'
-      ? `${window.location.origin}${window.location.pathname}`
+      ? `${window.location.origin}/admin`
       : undefined;
 
     const { data, error } = await client.auth.signInWithOAuth({

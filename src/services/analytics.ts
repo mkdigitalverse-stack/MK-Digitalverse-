@@ -231,7 +231,7 @@ class AnalyticsService {
    * Internal Event Dispatcher to DataLayer & Console
    */
   private dispatch(eventName: string, params?: Record<string, any>): void {
-    if (process.env.NODE_ENV !== 'production') {
+    if (typeof process !== 'undefined' && process.env?.NODE_ENV !== 'production') {
       console.log(`[Analytics Event] 📊 ${eventName}`, params || '');
     }
 

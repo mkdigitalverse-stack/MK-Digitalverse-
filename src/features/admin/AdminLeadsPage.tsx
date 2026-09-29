@@ -370,8 +370,11 @@ export const AdminLeadsPage: React.FC<AdminLeadsPageProps> = ({ onReturnHome }) 
 
   // Memoized intelligence metrics for reporting tabs
   const intelligence = useMemo(() => {
+    if (!isAdmin || leads.length === 0) {
+      return GrowthAnalyticsService.generateIntelligence([]);
+    }
     return GrowthAnalyticsService.generateIntelligence(leads);
-  }, [leads]);
+  }, [leads, isAdmin]);
 
   // 3b. Row-Level Selection Handlers (ADM-03)
   const handleToggleSelectLead = (leadId: string) => {
