@@ -174,13 +174,14 @@ export const AdminLeadDetailModal: React.FC<AdminLeadDetailModalProps> = ({
     setSaveSuccess(false);
 
     try {
+      const canonicalStage = (opportunityStage || status || 'new') as OpportunityStage;
       await onSaveLead(lead.leadId, {
-        status,
+        status: canonicalStage,
+        opportunityStage: canonicalStage,
         fitStatus,
         leadPriority,
         intentLevel,
         growthStage,
-        opportunityStage,
         assignedTo,
         nextFollowUpAt,
         lastContactedAt,
@@ -247,12 +248,8 @@ export const AdminLeadDetailModal: React.FC<AdminLeadDetailModalProps> = ({
   const handleMarkContactedNow = async () => {
     const nowIso = new Date().toISOString();
     setLastContactedAt(nowIso);
-    if (status === 'new') {
-      setStatus('contacted');
-    }
-    if (opportunityStage === 'new') {
-      setOpportunityStage('contacted');
-    }
+    setStatus('contacted');
+    setOpportunityStage('contacted');
     await adminLeadsService.addActivity(lead.leadId, {
       type: 'contacted',
       description: 'Contact made with healthcare practice lead',
@@ -263,6 +260,7 @@ export const AdminLeadDetailModal: React.FC<AdminLeadDetailModalProps> = ({
   const handleQuickDiscovery = async () => {
     const todayStr = new Date().toISOString().slice(0, 10);
     setDiscoveryDate(todayStr);
+    setStatus('discovery');
     setOpportunityStage('discovery');
     await adminLeadsService.addActivity(lead.leadId, {
       type: 'discovery_scheduled',
@@ -272,6 +270,7 @@ export const AdminLeadDetailModal: React.FC<AdminLeadDetailModalProps> = ({
   };
 
   const handleQuickAudit = async () => {
+    setStatus('discovery');
     setOpportunityStage('discovery');
     await adminLeadsService.addActivity(lead.leadId, {
       type: 'audit_completed',
@@ -284,6 +283,7 @@ export const AdminLeadDetailModal: React.FC<AdminLeadDetailModalProps> = ({
     const todayStr = new Date().toISOString().slice(0, 10);
     setProposalStatus('sent');
     setProposalSentAt(todayStr);
+    setStatus('proposal');
     setOpportunityStage('proposal');
     const val = proposalValue || estimatedOpportunityValue || 25000;
     if (!proposalValue) setProposalValue(val);
@@ -295,6 +295,7 @@ export const AdminLeadDetailModal: React.FC<AdminLeadDetailModalProps> = ({
   };
 
   const handleQuickNegotiation = async () => {
+    setStatus('negotiations');
     setOpportunityStage('negotiations');
     await adminLeadsService.addActivity(lead.leadId, {
       type: 'negotiation',

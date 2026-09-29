@@ -79,8 +79,8 @@ export const AdminPipelineBoard: React.FC<AdminPipelineBoardProps> = ({
   };
 
   // Executive pipeline calculations
-  const activeLeads = leads.filter(l => l.qualification.opportunityStage !== 'won' && l.qualification.opportunityStage !== 'lost');
-  const wonLeads = leads.filter(l => l.qualification.opportunityStage === 'won');
+  const activeLeads = leads.filter(l => (l.status || l.qualification.opportunityStage) !== 'won' && (l.status || l.qualification.opportunityStage) !== 'lost');
+  const wonLeads = leads.filter(l => (l.status || l.qualification.opportunityStage) === 'won');
 
   const totalPipelineVal = activeLeads.reduce((sum, l) => sum + (l.qualification.estimatedOpportunityValue || 0), 0);
   const totalWeightedVal = activeLeads.reduce((sum, l) => sum + (l.qualification.weightedPipelineValue || 0), 0);
@@ -103,7 +103,7 @@ export const AdminPipelineBoard: React.FC<AdminPipelineBoardProps> = ({
   };
 
   const handleQuickAdvance = async (item: CompleteLeadRecord) => {
-    const currentStage = item.qualification.opportunityStage || 'new';
+    const currentStage = item.status || item.qualification.opportunityStage || 'new';
     const currIdx = STAGE_SEQUENCE.indexOf(currentStage);
     if (currIdx >= 0 && currIdx < STAGE_SEQUENCE.length - 1) {
       const nextStage = STAGE_SEQUENCE[currIdx + 1];
@@ -133,7 +133,7 @@ export const AdminPipelineBoard: React.FC<AdminPipelineBoardProps> = ({
   const renderLeadCard = (item: CompleteLeadRecord) => {
     const evalOpp = FollowUpAutomationEngine.evaluateOpportunity(item);
     const estValue = item.qualification.estimatedOpportunityValue || 0;
-    const currentStage = item.qualification.opportunityStage || 'new';
+    const currentStage = item.status || item.qualification.opportunityStage || 'new';
     const nextStageIdx = STAGE_SEQUENCE.indexOf(currentStage);
     const canAdvance = nextStageIdx >= 0 && nextStageIdx < STAGE_SEQUENCE.length - 1;
 
@@ -241,7 +241,7 @@ export const AdminPipelineBoard: React.FC<AdminPipelineBoardProps> = ({
 
           {/* Move Stage Selector */}
           <select
-            value={item.qualification.opportunityStage || 'new'}
+            value={item.status || item.qualification.opportunityStage || 'new'}
             onChange={(e) => handleStageChange(item.leadId, e.target.value as OpportunityStage)}
             disabled={movingLeadId === item.leadId}
             className="text-[10px] font-medium bg-slate-50 hover:bg-slate-100 text-slate-800 rounded px-1.5 py-1 border border-slate-300 focus:outline-none cursor-pointer flex-1 truncate min-h-[32px]"
@@ -395,7 +395,7 @@ export const AdminPipelineBoard: React.FC<AdminPipelineBoardProps> = ({
         <div className="w-full overflow-x-auto pb-4 scrollbar-thin scrollbar-thumb-slate-300">
           <div className="inline-flex min-w-full space-x-3.5 items-start py-1 px-1">
             {STAGES.map((stage) => {
-              const stageLeads = leads.filter((l) => (l.qualification.opportunityStage || 'new') === stage.id);
+              const stageLeads = leads.filter((l) => (l.status || l.qualification.opportunityStage || 'new') === stage.id);
               const stageTotalVal = stageLeads.reduce((sum, l) => {
                 if (stage.id === 'won') {
                   return sum + (l.qualification.finalContractValue || l.qualification.estimatedOpportunityValue || 0);
@@ -448,7 +448,7 @@ export const AdminPipelineBoard: React.FC<AdminPipelineBoardProps> = ({
       {viewMode === 'stack' && (
         <div className="space-y-3">
           {STAGES.map((stage) => {
-            const stageLeads = leads.filter((l) => (l.qualification.opportunityStage || 'new') === stage.id);
+            const stageLeads = leads.filter((l) => (l.status || l.qualification.opportunityStage || 'new') === stage.id);
             const isExpanded = expandedStages[stage.id] ?? false;
             const stageTotalVal = stageLeads.reduce((sum, l) => {
               if (stage.id === 'won') {

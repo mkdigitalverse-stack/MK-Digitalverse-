@@ -18,6 +18,19 @@ import {
 
 export const AUTHORIZED_ADMIN_EMAIL = 'mkdigitalverse@gmail.com';
 
+export const VALID_PIPELINE_STAGES = [
+  'new',
+  'contacted',
+  'qualified',
+  'discovery',
+  'proposal',
+  'negotiations',
+  'won',
+  'lost'
+] as const;
+
+export type ValidPipelineStage = typeof VALID_PIPELINE_STAGES[number];
+
 export type AdminAuthUser = SupabaseUser & {
   displayName?: string | null;
 };
@@ -244,10 +257,8 @@ class AdminLeadsService {
 
     // 1:1 mapping: public.leads.status is the single source of truth for the pipeline stage
     const rawStatus = String(raw.status || 'new').toLowerCase().trim();
-    const normalizedStage = rawStatus === 'negotiation' ? 'negotiations' : rawStatus;
-    const VALID_STAGES: OpportunityStage[] = ['new', 'contacted', 'qualified', 'discovery', 'proposal', 'negotiations', 'won', 'lost'];
-    const opportunityStage: OpportunityStage = VALID_STAGES.includes(normalizedStage as OpportunityStage)
-      ? (normalizedStage as OpportunityStage)
+    const opportunityStage: OpportunityStage = (VALID_PIPELINE_STAGES as readonly string[]).includes(rawStatus)
+      ? (rawStatus as OpportunityStage)
       : 'new';
 
     const estValRaw = raw.estimated_opportunity_value ?? raw.estimatedOpportunityValue;
@@ -418,27 +429,17 @@ class AdminLeadsService {
       throw new Error('Lead ID is required for update.');
     }
 
-    const VALID_STAGES: OpportunityStage[] = [
-      'new',
-      'contacted',
-      'qualified',
-      'discovery',
-      'proposal',
-      'negotiations',
-      'won',
-      'lost'
-    ];
-
     // 1. Determine and validate target stage if provided
-    let targetStage: OpportunityStage | undefined = undefined;
-    const stageCandidate = updates.opportunityStage || updates.status;
-    if (stageCandidate) {
+    let targetStage: ValidPipelineStage | undefined = undefined;
+    const stageCandidate = updates.status !== undefined ? updates.status : updates.opportunityStage;
+    if (stageCandidate !== undefined) {
       const raw = String(stageCandidate).toLowerCase().trim();
-      const normalized = raw === 'negotiation' ? 'negotiations' : raw;
-      if (!VALID_STAGES.includes(normalized as OpportunityStage)) {
-        throw new Error(`Invalid stage "${stageCandidate}". Valid stages are: ${VALID_STAGES.join(', ')}`);
+      if (!VALID_PIPELINE_STAGES.includes(raw as any)) {
+        throw new Error(
+          `Invalid pipeline stage "${stageCandidate}". Valid stages are: ${VALID_PIPELINE_STAGES.join(', ')}`
+        );
       }
-      targetStage = normalized as OpportunityStage;
+      targetStage = raw as ValidPipelineStage;
     }
 
     const timestamp = new Date().toISOString();
@@ -474,7 +475,17 @@ class AdminLeadsService {
         throw new Error(`Lead update failed: No record found with ID "${leadId}" or update was not permitted by security policies.`);
       }
 
-      // 4. Map returned verified database row into domain model
+      // 4. Verify the database write: ensure data.status matches requested stage
+      if (targetStage !== undefined) {
+        const returnedStatus = String(data.status || '').toLowerCase().trim();
+        if (returnedStatus !== targetStage) {
+          throw new Error(
+            `Pipeline stage verification failed: requested "${targetStage}" but database returned "${data.status ?? 'null'}".`
+          );
+        }
+      }
+
+      // 5. Map returned verified database row into domain model
       const updatedRecord = this.mapRowToCompleteLeadRecord(data);
 
       // Preserve application-layer qualification calculations in memory
@@ -533,6 +544,27 @@ class AdminLeadsService {
       console.error('[AdminLeadsService] Lead update exception:', error);
       throw error;
     }
+  }
+
+  /**
+   * ADM-07: Canonical pipeline stage transition for an authenticated admin.
+   * Validates target stage against VALID_PIPELINE_STAGES, writes status: newStage to public.leads,
+   * verifies database write return, updates local cache, and notifies all active UI subscribers.
+   */
+  public async updateLeadStage(leadId: string, newStage: string): Promise<CompleteLeadRecord> {
+    if (!leadId) {
+      throw new Error('Lead ID is required for pipeline stage update.');
+    }
+    const normalized = String(newStage || '').toLowerCase().trim();
+    if (!VALID_PIPELINE_STAGES.includes(normalized as any)) {
+      throw new Error(
+        `Invalid pipeline stage "${newStage}". Valid stages are: ${VALID_PIPELINE_STAGES.join(', ')}`
+      );
+    }
+    return this.updateLead(leadId, {
+      status: normalized as ValidPipelineStage,
+      opportunityStage: normalized as OpportunityStage
+    });
   }
 
   /**

@@ -44,18 +44,18 @@ export const AdminOverviewView: React.FC<AdminOverviewViewProps> = ({
 
   // 1. KEY METRICS CALCULATION
   const totalLeads = leads.length;
-  const newLeads = leads.filter((l) => l.status === 'new');
+  const newLeads = leads.filter((l) => (l.status || l.qualification.opportunityStage || 'new') === 'new');
   const qualifiedLeads = leads.filter(
     (l) =>
       ['qualified', 'discovery', 'proposal', 'negotiations', 'won'].includes(
-        l.qualification.opportunityStage || ''
+        l.status || l.qualification.opportunityStage || ''
       )
   );
   const activeOpportunities = leads.filter(
-    (l) => l.qualification.opportunityStage !== 'won' && l.qualification.opportunityStage !== 'lost'
+    (l) => (l.status || l.qualification.opportunityStage) !== 'won' && (l.status || l.qualification.opportunityStage) !== 'lost'
   );
-  const wonLeads = leads.filter((l) => l.qualification.opportunityStage === 'won');
-  const lostLeads = leads.filter((l) => l.qualification.opportunityStage === 'lost');
+  const wonLeads = leads.filter((l) => (l.status || l.qualification.opportunityStage) === 'won');
+  const lostLeads = leads.filter((l) => (l.status || l.qualification.opportunityStage) === 'lost');
 
   const wonRevenue = wonLeads.reduce(
     (sum, l) => sum + (l.qualification.finalContractValue || l.qualification.estimatedOpportunityValue || 0),
@@ -80,7 +80,7 @@ export const AdminOverviewView: React.FC<AdminOverviewViewProps> = ({
   ];
 
   const pipelineStagesData = STAGE_ORDER.map((stage) => {
-    const stageLeads = leads.filter((l) => (l.qualification.opportunityStage || 'new') === stage.id);
+    const stageLeads = leads.filter((l) => (l.status || l.qualification.opportunityStage || 'new') === stage.id);
     const value = stageLeads.reduce((sum, l) => {
       if (stage.id === 'won') {
         return sum + (l.qualification.finalContractValue || l.qualification.estimatedOpportunityValue || 0);

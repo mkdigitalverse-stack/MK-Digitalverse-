@@ -273,14 +273,17 @@ export const AdminLeadsPage: React.FC<AdminLeadsPageProps> = ({ onReturnHome }) 
     setLeads(prevLeads =>
       prevLeads.map(l => (l.leadId === leadId ? updatedLead : l))
     );
+    setSelectedLead(prev => (prev && prev.leadId === leadId ? updatedLead : prev));
   };
 
   const handleUpdateStage = async (leadId: string, newStage: OpportunityStage) => {
     const targetLead = leads.find(l => l.leadId === leadId);
     const estVal = targetLead?.qualification.estimatedOpportunityValue || 0;
-    const oldStage = targetLead?.qualification.opportunityStage || 'new';
+    const oldStage = targetLead?.status || targetLead?.qualification.opportunityStage || 'new';
     
+    // Explicitly write status: newStage to public.leads
     const updatedRecord = await adminLeadsService.updateLead(leadId, { 
+      status: newStage,
       opportunityStage: newStage,
       estimatedOpportunityValue: estVal
     });
@@ -288,6 +291,7 @@ export const AdminLeadsPage: React.FC<AdminLeadsPageProps> = ({ onReturnHome }) 
     setLeads(prevLeads =>
       prevLeads.map(l => (l.leadId === leadId ? updatedRecord : l))
     );
+    setSelectedLead(prev => (prev && prev.leadId === leadId ? updatedRecord : prev));
 
     if (oldStage !== newStage) {
       await adminLeadsService.addActivity(leadId, {

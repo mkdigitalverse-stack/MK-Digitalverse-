@@ -135,14 +135,25 @@ export async function submitPublicLead(
     // Definitive Method: submit_public_lead() RPC (SECURITY DEFINER)
     // Directly invokes the PostgreSQL function: submit_public_lead(payload jsonb)
     try {
-      const { data, error } = await supabase.rpc('submit_public_lead', {
+      let rpcRes = await supabase.rpc('submit_public_lead', {
         payload: supabaseLeadRecord
       });
 
-      if (!error) {
+      // If the parameter was defined as lead_data in PostgreSQL, try lead_data parameter
+      if (rpcRes.error && (rpcRes.error.message?.includes('payload') || rpcRes.error.message?.includes('parameter') || rpcRes.error.code === '42883')) {
+        const altRes = await supabase.rpc('submit_public_lead', {
+          lead_data: supabaseLeadRecord
+        });
+        if (!altRes.error) {
+          rpcRes = altRes;
+        }
+      }
+
+      if (!rpcRes.error) {
         lastSubmissionTimes.set(sanitizedEmail, Date.now());
         removeFromLocalQueue();
 
+        const data = rpcRes.data;
         const returnedId = (data && typeof data === 'object' && 'id' in data)
           ? String((data as { id: unknown }).id)
           : (typeof data === 'string' && data ? data : clientTrackingId);
@@ -151,8 +162,8 @@ export async function submitPublicLead(
         return { success: true, leadId: returnedId, source: 'supabase_rpc' };
       }
 
-      lastErrorMessage = error.message || 'Lead submission failed.';
-      console.error('[SupabasePublicLeads] submit_public_lead RPC error:', error.message);
+      lastErrorMessage = rpcRes.error.message || 'Lead submission failed.';
+      console.error('[SupabasePublicLeads] submit_public_lead RPC error:', rpcRes.error.message);
     } catch (rpcEx: any) {
       lastErrorMessage = rpcEx?.message || String(rpcEx);
       console.error('[SupabasePublicLeads] submit_public_lead RPC exception:', rpcEx);
