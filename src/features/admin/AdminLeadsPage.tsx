@@ -112,7 +112,6 @@ export const AdminLeadsPage: React.FC<AdminLeadsPageProps> = ({ onReturnHome }) 
   const [isLogExpenseOpen, setIsLogExpenseOpen] = useState<boolean>(false);
   const [activePaymentInvoice, setActivePaymentInvoice] = useState<InvoiceRecord | null>(null);
   const [activeClientForAction, setActiveClientForAction] = useState<ClientRecord | null>(null);
-  const [clientFromLeadData, setClientFromLeadData] = useState<any | null>(null);
 
   const loadFinanceData = async () => {
     try {
@@ -254,18 +253,6 @@ export const AdminLeadsPage: React.FC<AdminLeadsPageProps> = ({ onReturnHome }) 
     await loadFinanceData();
     setIsCreateMilestoneOpen(false);
     setActiveContractForMilestone(null);
-  };
-
-  const handleConvertToClientFromLead = (leadRecord: CompleteLeadRecord) => {
-    setClientFromLeadData({
-      leadId: leadRecord.leadId,
-      name: leadRecord.visitorData.contactName,
-      organizationName: leadRecord.visitorData.organizationName,
-      email: leadRecord.visitorData.email,
-      phone: leadRecord.visitorData.phone,
-      healthcareCategory: leadRecord.qualification.healthcareCategoryNormalized || leadRecord.visitorData.healthcareCategory
-    });
-    setIsCreateClientOpen(true);
   };
 
   const handleSaveLead = async (leadId: string, updates: any) => {
@@ -798,7 +785,6 @@ export const AdminLeadsPage: React.FC<AdminLeadsPageProps> = ({ onReturnHome }) 
                 payments={payments}
                 contracts={contracts}
                 onOpenCreateClient={() => {
-                  setClientFromLeadData(null);
                   setIsCreateClientOpen(true);
                 }}
                 onOpenCreateInvoiceForClient={(c) => {
@@ -833,7 +819,6 @@ export const AdminLeadsPage: React.FC<AdminLeadsPageProps> = ({ onReturnHome }) 
               lead={selectedLead}
               onClose={() => setSelectedLead(null)}
               onSaveLead={handleSaveLead}
-              onConvertToClient={handleConvertToClientFromLead}
             />
 
             {/* Finance Modals */}
@@ -864,12 +849,8 @@ export const AdminLeadsPage: React.FC<AdminLeadsPageProps> = ({ onReturnHome }) 
 
             <AdminCreateClientModal
               isOpen={isCreateClientOpen}
-              onClose={() => {
-                setIsCreateClientOpen(false);
-                setClientFromLeadData(null);
-              }}
+              onClose={() => setIsCreateClientOpen(false)}
               onSubmit={handleCreateClient}
-              initialData={clientFromLeadData}
             />
 
             <AdminLogExpenseModal

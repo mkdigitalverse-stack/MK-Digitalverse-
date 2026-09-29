@@ -170,7 +170,7 @@ export const AdminClientsView: React.FC<AdminClientsViewProps> = ({
                   <td colSpan={8} className="py-12 text-center text-slate-400">
                     <Users className="w-8 h-8 mx-auto text-slate-300 mb-2" />
                     <p className="font-medium text-xs text-slate-600">No client accounts found</p>
-                    <p className="text-[11px] text-slate-400 mt-0.5">Add a commercial partner account or convert a signed lead from the CRM pipeline.</p>
+                    <p className="text-[11px] text-slate-400 mt-0.5">Add a commercial partner account for client contracts and billing.</p>
                   </td>
                 </tr>
               ) : (

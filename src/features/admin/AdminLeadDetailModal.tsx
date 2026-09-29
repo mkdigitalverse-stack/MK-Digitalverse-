@@ -16,7 +16,6 @@ import {
   Save, 
   Clock, 
   User, 
-  Building2, 
   Phone, 
   Mail, 
   Globe, 
@@ -46,14 +45,12 @@ interface AdminLeadDetailModalProps {
   lead: CompleteLeadRecord | null;
   onClose: () => void;
   onSaveLead: (leadId: string, updates: any) => Promise<void>;
-  onConvertToClient?: (lead: CompleteLeadRecord) => void;
 }
 
 export const AdminLeadDetailModal: React.FC<AdminLeadDetailModalProps> = ({
   lead,
   onClose,
-  onSaveLead,
-  onConvertToClient
+  onSaveLead
 }) => {
   if (!lead) return null;
 
@@ -1176,20 +1173,6 @@ export const AdminLeadDetailModal: React.FC<AdminLeadDetailModalProps> = ({
             Created: <strong>{new Date(lead.createdAt).toLocaleDateString()}</strong>
           </div>
           <div className="flex items-center space-x-2.5 sm:space-x-3">
-            {onConvertToClient && (
-              <button
-                type="button"
-                onClick={() => {
-                  onClose();
-                  onConvertToClient(lead);
-                }}
-                className="px-3.5 py-2.5 rounded-lg bg-emerald-600 hover:bg-emerald-700 text-white text-xs font-semibold shadow-xs transition-colors min-h-[44px] flex items-center space-x-1.5"
-                title="Create a commercial client account from this lead"
-              >
-                <Building2 className="w-3.5 h-3.5" />
-                <span>Convert to Client</span>
-              </button>
-            )}
             <button
               type="button"
               onClick={onClose}

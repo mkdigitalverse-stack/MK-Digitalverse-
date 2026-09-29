@@ -109,10 +109,10 @@ export const AdminCreateClientModal: React.FC<AdminCreateClientModalProps> = ({
         <div className="flex items-start justify-between border-b border-slate-100 pb-3">
           <div>
             <span className="text-[10px] font-mono uppercase font-bold text-amber-700 tracking-wider">
-              {initialData?.leadId ? 'CONVERT LEAD TO CLIENT' : 'NEW CLIENT ACCOUNT'}
+              NEW CLIENT ACCOUNT
             </span>
             <h3 className="text-base font-bold text-slate-900">
-              {initialData?.leadId ? 'Onboard Won Partner as Client' : 'Add Healthcare Client Partner'}
+              Add Healthcare Client Partner
             </h3>
           </div>
           <button
@@ -122,18 +122,6 @@ export const AdminCreateClientModal: React.FC<AdminCreateClientModalProps> = ({
             <X className="w-4 h-4" />
           </button>
         </div>
-
-        {initialData?.leadId && (
-          <div className="p-3 bg-emerald-50 border border-emerald-200 rounded-xl text-xs text-emerald-800 flex items-start space-x-2">
-            <CheckCircle2 className="w-4 h-4 text-emerald-600 shrink-0 mt-0.5" />
-            <div>
-              <span className="font-semibold block">Commercial Relationship Creation</span>
-              <span className="text-[11px] text-emerald-700">
-                Converting this won lead creates a permanent commercial client record while retaining origin lead telemetry. No automatic invoices or payments are fabricated.
-              </span>
-            </div>
-          </div>
-        )}
 
         {errorMessage && (
           <div className="p-3 bg-red-50 border border-red-200 rounded-xl text-xs text-red-800 flex items-start space-x-2">

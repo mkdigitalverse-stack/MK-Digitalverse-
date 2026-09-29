@@ -112,7 +112,7 @@ export class FollowUpAutomationEngine {
       case 'negotiations':
         return 'Finalize Scope & Commercial Terms';
       case 'won':
-        return 'Initiate Client Onboarding & Partnership Kickoff';
+        return 'Initiate Healthcare Partnership Kickoff';
       case 'lost':
         return 'Archive Opportunity & Schedule Future Nurture';
       default:
