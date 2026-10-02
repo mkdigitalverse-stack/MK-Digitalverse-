@@ -37,12 +37,14 @@ import { AdminContractDetailModal } from './AdminContractDetailModal';
 import { AdminCreateContractModal } from './AdminCreateContractModal';
 import { AdminCreateMilestoneModal } from './AdminCreateMilestoneModal';
 import { AdminClientPortalModal } from './AdminClientPortalModal';
+import { AdminCreateLeadModal } from './AdminCreateLeadModal';
 import { 
   ShieldCheck, 
   Lock, 
   AlertOctagon, 
   ArrowLeft, 
   RefreshCw, 
+  Plus, 
   Sparkles, 
   X, 
   Clock, 
@@ -90,6 +92,7 @@ export const AdminLeadsPage: React.FC<AdminLeadsPageProps> = ({ onReturnHome }) 
   const [exportFeedback, setExportFeedback] = useState<{ message: string; type: 'success' | 'info' } | null>(null);
   const [selectedLead, setSelectedLead] = useState<CompleteLeadRecord | null>(null);
   const [isRefreshing, setIsRefreshing] = useState<boolean>(false);
+  const [isAddLeadOpen, setIsAddLeadOpen] = useState<boolean>(false);
 
   // Finance & Contracts Domain State
   const [clients, setClients] = useState<ClientRecord[]>([]);
@@ -268,6 +271,22 @@ export const AdminLeadsPage: React.FC<AdminLeadsPageProps> = ({ onReturnHome }) 
       prevLeads.map(l => (l.leadId === updatedRecord.leadId ? updatedRecord : l))
     );
     setSelectedLead(prev => (prev && prev.leadId === updatedRecord.leadId ? updatedRecord : prev));
+  };
+
+  const handleLeadCreated = (newLead: CompleteLeadRecord) => {
+    setLeads(prevLeads => [newLead, ...prevLeads.filter(l => l.leadId !== newLead.leadId)]);
+    setExportFeedback({
+      message: `Lead created successfully: ${newLead.visitorData.contactName} (${newLead.visitorData.organizationName || 'New Lead'})`,
+      type: 'success'
+    });
+    setTimeout(() => setExportFeedback(null), 4000);
+  };
+
+  const handleViewExistingLead = (leadId: string) => {
+    const existing = leads.find(l => l.leadId === leadId);
+    if (existing) {
+      setSelectedLead(existing);
+    }
   };
 
   const handleUpdateStage = async (leadId: string, newStage: OpportunityStage) => {
@@ -571,6 +590,7 @@ export const AdminLeadsPage: React.FC<AdminLeadsPageProps> = ({ onReturnHome }) 
             onToggleMobileNav={() => setIsOpenMobileNav(!isOpenMobileNav)}
             isOpenMobileNav={isOpenMobileNav}
             isRefreshing={isRefreshing}
+            onOpenAddLead={() => setIsAddLeadOpen(true)}
           />
 
           {/* Main Scrollable View Area */}
@@ -603,12 +623,28 @@ export const AdminLeadsPage: React.FC<AdminLeadsPageProps> = ({ onReturnHome }) 
                 leads={leads}
                 onSelectLead={setSelectedLead}
                 onUpdateStage={handleUpdateStage}
+                onOpenAddLead={() => setIsAddLeadOpen(true)}
               />
             )}
 
             {/* TAB 3: LEADS DATABASE & TABLE */}
             {activeTab === 'database' && (
               <div className="space-y-4">
+                {/* Leads Header Banner (ADM-10 Section 2) */}
+                <div className="bg-white p-4 sm:p-5 rounded-xl border border-slate-200/80 shadow-2xs flex flex-col sm:flex-row sm:items-center justify-between gap-3">
+                  <div>
+                    <h2 className="text-base sm:text-lg font-bold text-slate-900 tracking-tight">Leads</h2>
+                    <p className="text-xs text-slate-500">Manage healthcare growth opportunities</p>
+                  </div>
+                  <button
+                    type="button"
+                    onClick={() => setIsAddLeadOpen(true)}
+                    className="self-start sm:self-auto px-4 py-2 rounded-lg bg-amber-500 hover:bg-amber-600 text-slate-950 font-bold text-xs shadow-sm transition-all flex items-center space-x-1.5 min-h-[38px]"
+                  >
+                    <Plus className="w-4 h-4" />
+                    <span>+ Add Lead</span>
+                  </button>
+                </div>
                 {exportFeedback && (
                   <div className="p-3 sm:p-4 bg-emerald-50 border border-emerald-300 text-emerald-900 rounded-xl text-xs font-semibold flex items-center justify-between shadow-xs animate-in fade-in">
                     <div className="flex items-center space-x-2">
@@ -828,6 +864,14 @@ export const AdminLeadsPage: React.FC<AdminLeadsPageProps> = ({ onReturnHome }) 
               onClose={() => setSelectedLead(null)}
               onSaveLead={handleSaveLead}
               onLeadUpdated={handleLeadUpdated}
+            />
+
+            {/* Manual Lead Creation Modal (ADM-10) */}
+            <AdminCreateLeadModal
+              isOpen={isAddLeadOpen}
+              onClose={() => setIsAddLeadOpen(false)}
+              onCreated={handleLeadCreated}
+              onViewExisting={handleViewExistingLead}
             />
 
             {/* Finance Modals */}

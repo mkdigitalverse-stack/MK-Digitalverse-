@@ -22,13 +22,15 @@ import {
   ChevronDown,
   ShieldAlert,
   LayoutGrid,
-  ListFilter
+  ListFilter,
+  Plus
 } from 'lucide-react';
 
 interface AdminPipelineBoardProps {
   leads: CompleteLeadRecord[];
   onSelectLead: (lead: CompleteLeadRecord) => void;
   onUpdateStage: (leadId: string, newStage: OpportunityStage) => Promise<void>;
+  onOpenAddLead?: () => void;
 }
 
 const STAGES: { id: OpportunityStage; title: string; color: string; bg: string; border: string; headerBg: string }[] = [
@@ -55,7 +57,8 @@ const STAGE_SEQUENCE: OpportunityStage[] = [
 export const AdminPipelineBoard: React.FC<AdminPipelineBoardProps> = ({
   leads,
   onSelectLead,
-  onUpdateStage
+  onUpdateStage,
+  onOpenAddLead
 }) => {
   const [movingLeadId, setMovingLeadId] = useState<string | null>(null);
   const [stageError, setStageError] = useState<string | null>(null);
@@ -302,8 +305,21 @@ export const AdminPipelineBoard: React.FC<AdminPipelineBoardProps> = ({
           </p>
         </div>
 
-        {/* View Mode Toggle (Kanban Board vs Stacked Cards) */}
-        <div className="flex items-center space-x-1 bg-slate-100 p-1 rounded-lg border border-slate-200 self-start sm:self-auto">
+        {/* View Mode Toggle and + Add Lead */}
+        <div className="flex items-center space-x-2 self-start sm:self-auto">
+          {onOpenAddLead && (
+            <button
+              type="button"
+              onClick={onOpenAddLead}
+              className="inline-flex items-center space-x-1.5 px-3 py-1.5 rounded-lg bg-amber-500 hover:bg-amber-600 text-slate-950 text-xs font-bold shadow-xs transition-all min-h-[34px]"
+            >
+              <Plus className="w-3.5 h-3.5" />
+              <span>+ Add Lead</span>
+            </button>
+          )}
+
+          {/* View Mode Toggle (Kanban Board vs Stacked Cards) */}
+          <div className="flex items-center space-x-1 bg-slate-100 p-1 rounded-lg border border-slate-200">
           <button
             type="button"
             onClick={() => setViewMode('board')}
@@ -331,6 +347,7 @@ export const AdminPipelineBoard: React.FC<AdminPipelineBoardProps> = ({
           </button>
         </div>
       </div>
+    </div>
 
       {/* Executive Sales Pipeline Summary Bar */}
       <div className="grid grid-cols-2 sm:grid-cols-3 lg:grid-cols-5 gap-2.5 sm:gap-3 bg-white p-3.5 rounded-xl border border-slate-200 shadow-2xs">

@@ -61,6 +61,7 @@ export interface LeadActivity {
     | 'lost' 
     | 'note' 
     | 'note_added' 
+    | 'lead_created'
     | 'value_updated' 
     | 'status_change';
   description: string;
@@ -337,7 +338,7 @@ class AdminLeadsService {
       healthcareCategoryNormalized: raw.healthcare_category_normalized ?? raw.healthcareCategoryNormalized ?? defaultEval.healthcareCategoryNormalized,
       challengeCategory: raw.challenge_category ?? raw.challengeCategory ?? defaultEval.challengeCategory,
       fitScore,
-      derivedLeadSource: raw.derived_lead_source ?? raw.derivedLeadSource ?? defaultEval.derivedLeadSource,
+      derivedLeadSource: (raw.derived_lead_source === 'admin_manual' || raw.derivedLeadSource === 'admin_manual' || raw.utm_source === 'admin_manual') ? 'admin_manual' : (raw.derived_lead_source ?? raw.derivedLeadSource ?? defaultEval.derivedLeadSource),
       organizationSize: raw.organization_size ?? raw.organizationSize ?? undefined,
       locationsCount: raw.locations_count ?? raw.locationsCount ?? undefined,
       doctorCount: raw.doctor_count ?? raw.doctorCount ?? undefined,
@@ -414,24 +415,76 @@ class AdminLeadsService {
         throw error;
       }
 
-      const records: CompleteLeadRecord[] = (data || []).map((row) => this.mapRowToCompleteLeadRecord(row));
+      const remoteRecords: CompleteLeadRecord[] = (data || []).map((row) => this.mapRowToCompleteLeadRecord(row));
       
-      // Merge any local manual leads if they were created offline
+      // Deterministic state reconciliation:
+      // Reconcile each remote lead by ID against existing confirmed records in memory.
+      // 1. If an existing record in memory has a strictly newer updatedAt timestamp than remote,
+      //    it means a recent confirmed action (schedule, reschedule, cancel, contact, stage update, etc.)
+      //    occurred and the remote query has not caught up or is a stale snapshot. The newer confirmed record WINS.
+      // 2. If the remote record is newer or equal, we accept the remote record, but preserve confirmed follow-up/qualification
+      //    fields if the remote row omitted them (e.g. if specific columns are absent on the remote DB).
+      // 3. Any local-only records (e.g. newly created manual leads not yet returned by remote query) are preserved.
+      const reconciledMap = new Map<string, CompleteLeadRecord>();
+
+      for (const remote of remoteRecords) {
+        const existing = this.cachedLeads.find(l => l.leadId === remote.leadId);
+        if (existing) {
+          const remoteTime = new Date(remote.updatedAt).getTime();
+          const localTime = new Date(existing.updatedAt).getTime();
+
+          if (localTime > remoteTime) {
+            // Local confirmed record is strictly newer than incoming snapshot: PRESERVE LOCAL
+            reconciledMap.set(existing.leadId, existing);
+          } else {
+            // Remote record is newer or equal.
+            // If remote record didn't return follow-up fields (e.g. DB column absent) but local had confirmed them:
+            if (!remote.qualification.nextFollowUpAt && existing.qualification.nextFollowUpAt && (remoteTime === localTime || Math.abs(remoteTime - localTime) < 5000)) {
+              remote.qualification.nextFollowUpAt = existing.qualification.nextFollowUpAt;
+              remote.qualification.nextFollowUpRemark = existing.qualification.nextFollowUpRemark;
+              remote.qualification.nextFollowUpNote = existing.qualification.nextFollowUpNote;
+            }
+            if (!remote.qualification.lastContactedAt && existing.qualification.lastContactedAt && (remoteTime === localTime || Math.abs(remoteTime - localTime) < 5000)) {
+              remote.qualification.lastContactedAt = existing.qualification.lastContactedAt;
+            }
+            // Preserve application-layer qualification calculations
+            if (existing.qualification.weightedPipelineValue && !remote.qualification.weightedPipelineValue) {
+              remote.qualification.weightedPipelineValue = existing.qualification.weightedPipelineValue;
+            }
+            reconciledMap.set(remote.leadId, remote);
+          }
+        } else {
+          reconciledMap.set(remote.leadId, remote);
+        }
+      }
+
+      // Preserve any un-queried local leads (e.g. offline created manual leads)
+      for (const local of this.cachedLeads) {
+        if (!reconciledMap.has(local.leadId)) {
+          reconciledMap.set(local.leadId, local);
+        }
+      }
+
+      // Check localStorage for offline manual leads as well
       if (typeof localStorage !== 'undefined') {
         try {
           const cachedJson = localStorage.getItem('mk_leads_cache_v2');
           if (cachedJson) {
             const parsed = JSON.parse(cachedJson);
             if (Array.isArray(parsed)) {
-              const remoteIds = new Set(records.map(r => r.leadId));
-              const localUnsynced = parsed.filter((l: any) => l && l.leadId && !remoteIds.has(l.leadId));
-              if (localUnsynced.length > 0) {
-                records.push(...localUnsynced);
+              for (const l of parsed) {
+                if (l && l.leadId && !reconciledMap.has(l.leadId)) {
+                  reconciledMap.set(l.leadId, l);
+                }
               }
             }
           }
         } catch (_) {}
       }
+
+      const records = Array.from(reconciledMap.values());
+      // Sort by created_at descending to maintain standard pipeline ordering
+      records.sort((a, b) => new Date(b.createdAt).getTime() - new Date(a.createdAt).getTime());
 
       this.cachedLeads = records;
       try {
@@ -518,10 +571,6 @@ class AdminLeadsService {
     leadId: string,
     updates: Partial<InternalQualificationData> & { status?: CompleteLeadRecord['status'] }
   ): Promise<CompleteLeadRecord> {
-    if (!supabase) {
-      throw new Error('Supabase client is not configured.');
-    }
-
     if (!leadId) {
       throw new Error('Lead ID is required for update.');
     }
@@ -537,6 +586,37 @@ class AdminLeadsService {
         );
       }
       targetStage = raw as ValidPipelineStage;
+    }
+
+    if (!supabase) {
+      const existing = this.cachedLeads.find(l => l.leadId === leadId);
+      if (existing) {
+        const timestamp = new Date().toISOString();
+        const effectiveStage = targetStage || existing.status;
+        const updatedRecord: CompleteLeadRecord = {
+          ...existing,
+          status: effectiveStage,
+          updatedAt: timestamp,
+          qualification: {
+            ...existing.qualification,
+            opportunityStage: effectiveStage,
+            ...(updates.nextFollowUpAt !== undefined ? { nextFollowUpAt: updates.nextFollowUpAt || undefined } : {}),
+            ...(updates.nextFollowUpRemark !== undefined ? { nextFollowUpRemark: updates.nextFollowUpRemark || undefined } : {}),
+            ...(updates.nextFollowUpNote !== undefined ? { nextFollowUpNote: updates.nextFollowUpNote || undefined } : {}),
+            ...(updates.lastContactedAt !== undefined ? { lastContactedAt: updates.lastContactedAt || undefined } : {}),
+            ...(updates.nextAction !== undefined ? { nextAction: updates.nextAction || '' } : {}),
+            ...(updates.leadPriority !== undefined ? { leadPriority: updates.leadPriority } : {}),
+            ...(updates.estimatedOpportunityValue !== undefined ? { 
+              estimatedOpportunityValue: updates.estimatedOpportunityValue,
+              weightedPipelineValue: Math.round(updates.estimatedOpportunityValue * (STAGE_PROBABILITIES[effectiveStage] ?? 0.05))
+            } : {})
+          }
+        };
+        this.cachedLeads = this.cachedLeads.map(l => l.leadId === leadId ? updatedRecord : l);
+        this.leadListeners.forEach(listener => { try { listener(this.cachedLeads); } catch (_) {} });
+        return updatedRecord;
+      }
+      throw new Error('Supabase client is not configured.');
     }
 
     const timestamp = new Date().toISOString();
@@ -875,14 +955,39 @@ class AdminLeadsService {
       biggest_challenge: input.biggestChallenge?.trim() || '',
       growth_objective: input.growthObjective?.trim() || '',
       status: 'new',
-      lead_type: 'manual_intake',
-      utm_source: 'direct',
+      opportunity_stage: 'new',
+      stage_probability: 0.05,
+      stage_entered_at: timestamp,
+      stage_changed_at: timestamp,
+      lead_type: 'contact_enquiry',
+      utm_source: 'admin_manual',
       created_at: timestamp,
       updated_at: timestamp
     };
 
+    if (input.estimatedOpportunityValue) {
+      payload.estimated_opportunity_value = input.estimatedOpportunityValue;
+    }
+    if (input.currency) {
+      payload.currency = input.currency;
+    }
+    if (input.assignedTo) {
+      payload.assigned_to = input.assignedTo.trim();
+    }
+    if (input.leadPriority) {
+      payload.lead_priority = input.leadPriority;
+    }
+    if (input.nextAction) {
+      payload.next_action = input.nextAction.trim();
+    }
+    if (input.internalNotes) {
+      payload.internal_notes = input.internalNotes.trim();
+    }
     if (initialFollowUpIso) {
       payload.next_follow_up_at = initialFollowUpIso;
+      if (input.nextFollowUpRemark) {
+        payload.next_follow_up_remark = input.nextFollowUpRemark.trim();
+      }
     }
 
     let createdRecord: CompleteLeadRecord;
@@ -896,10 +1001,28 @@ class AdminLeadsService {
           .single();
 
         if (error) {
-          // If optional next_follow_up_at column fails on remote, retry without it
+          // If optional next_follow_up_at or qualification columns fail on remote, retry without optional columns
           if (error.message?.includes('column') || (error as any).code === '42703') {
-            delete payload.next_follow_up_at;
-            const fallback = await supabase.from('leads').insert(payload).select('*').single();
+            const basicPayload = {
+              name: sanitizedName,
+              contact_name: sanitizedName,
+              email: sanitizedEmail,
+              phone: input.phone.trim(),
+              organization_name: input.organizationName.trim(),
+              website: input.website?.trim() || '',
+              location: input.location?.trim() || '',
+              healthcare_category: input.healthcareCategory?.trim() || '',
+              biggest_challenge: input.biggestChallenge?.trim() || '',
+              growth_objective: input.growthObjective?.trim() || '',
+              status: 'new',
+              opportunity_stage: 'new',
+              stage_probability: 0.05,
+              lead_type: 'contact_enquiry',
+              utm_source: 'admin_manual',
+              created_at: timestamp,
+              updated_at: timestamp
+            };
+            const fallback = await supabase.from('leads').insert(basicPayload).select('*').single();
             if (fallback.error) throw new Error(fallback.error.message);
             createdRecord = this.mapRowToCompleteLeadRecord(fallback.data);
           } else {
@@ -919,6 +1042,13 @@ class AdminLeadsService {
     }
 
     // Apply manual qualification attributes
+    createdRecord.updatedAt = timestamp;
+    createdRecord.qualification.derivedLeadSource = 'admin_manual';
+    createdRecord.qualification.opportunityStage = 'new';
+    createdRecord.qualification.stageProbability = 0.05;
+    createdRecord.qualification.stageEnteredAt = timestamp;
+    createdRecord.qualification.stageChangedAt = timestamp;
+
     if (typeof input.estimatedOpportunityValue === 'number') {
       createdRecord.qualification.estimatedOpportunityValue = input.estimatedOpportunityValue;
       createdRecord.qualification.weightedPipelineValue = Math.round(input.estimatedOpportunityValue * 0.05);
@@ -933,8 +1063,8 @@ class AdminLeadsService {
       createdRecord.qualification.nextFollowUpRemark = input.nextFollowUpRemark || 'Initial Follow-Up';
     }
 
-    // Add to cached leads
-    this.cachedLeads = [createdRecord, ...this.cachedLeads];
+    // Add to cached leads at position 0
+    this.cachedLeads = [createdRecord, ...this.cachedLeads.filter(l => l.leadId !== createdRecord.leadId)];
     try {
       if (typeof localStorage !== 'undefined') {
         localStorage.setItem('mk_leads_cache_v2', JSON.stringify(this.cachedLeads));
@@ -946,11 +1076,12 @@ class AdminLeadsService {
       try { l(this.cachedLeads); } catch (_) {}
     });
 
-    // Record creation activity
+    // Record creation activity (ADM-10: lead_created type with source = admin_manual)
     await this.addActivity(createdRecord.leadId, {
-      type: 'note',
-      description: 'Lead manually created in Admin CRM workspace.',
-      actor: input.assignedTo || 'Growth Partner'
+      type: 'lead_created',
+      description: 'Lead manually registered by Admin in CRM workspace.',
+      actor: input.assignedTo || 'Growth Partner',
+      metadata: { source: 'admin_manual' }
     });
 
     if (initialFollowUpIso) {
@@ -970,12 +1101,51 @@ class AdminLeadsService {
   }
 
   /**
+   * Helper to detect duplicate lead by email, phone, or organization + contact.
+   */
+  public checkDuplicateLead(params: {
+    email?: string;
+    phone?: string;
+    contactName?: string;
+    organizationName?: string;
+  }): CompleteLeadRecord | null {
+    const emailClean = (params.email || '').toLowerCase().trim();
+    const phoneDigits = (params.phone || '').replace(/\D/g, '');
+    const contactClean = (params.contactName || '').toLowerCase().trim();
+    const orgClean = (params.organizationName || '').toLowerCase().trim();
+
+    return this.cachedLeads.find((l) => {
+      // 1. Email check (exact match)
+      if (emailClean && emailClean.includes('@')) {
+        const leadEmail = (l.visitorData.email || '').toLowerCase().trim();
+        if (leadEmail && leadEmail === emailClean) return true;
+      }
+      // 2. Phone check (numeric digits match with minimum 7 digits)
+      if (phoneDigits && phoneDigits.length >= 7) {
+        const leadPhoneDigits = (l.visitorData.phone || '').replace(/\D/g, '');
+        if (leadPhoneDigits && leadPhoneDigits.length >= 7) {
+          if (leadPhoneDigits.endsWith(phoneDigits) || phoneDigits.endsWith(leadPhoneDigits)) {
+            return true;
+          }
+        }
+      }
+      // 3. Organization + Contact Name check
+      if (contactClean && orgClean && contactClean.length > 2 && orgClean.length > 2) {
+        const leadContact = (l.visitorData.contactName || '').toLowerCase().trim();
+        const leadOrg = (l.visitorData.organizationName || '').toLowerCase().trim();
+        if (leadContact === contactClean && leadOrg === orgClean) {
+          return true;
+        }
+      }
+      return false;
+    }) || null;
+  }
+
+  /**
    * Helper to detect duplicate email among existing leads.
    */
   public checkDuplicateEmail(email: string): CompleteLeadRecord | null {
-    if (!email || !email.trim()) return null;
-    const clean = email.toLowerCase().trim();
-    return this.cachedLeads.find((l) => l.visitorData.email.toLowerCase().trim() === clean) || null;
+    return this.checkDuplicateLead({ email });
   }
 
   /**

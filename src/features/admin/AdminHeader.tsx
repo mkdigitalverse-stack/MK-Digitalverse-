@@ -1,5 +1,5 @@
 import React from 'react';
-import { Menu, RefreshCw, LogOut, ShieldCheck, Lock, ExternalLink } from 'lucide-react';
+import { Menu, RefreshCw, LogOut, ShieldCheck, Lock, ExternalLink, Plus } from 'lucide-react';
 import { AdminAuthUser } from '../../services/adminLeadsService';
 import { AdminViewTab } from './AdminSidebar';
 
@@ -11,6 +11,7 @@ interface AdminHeaderProps {
   onToggleMobileNav: () => void;
   isOpenMobileNav: boolean;
   isRefreshing?: boolean;
+  onOpenAddLead?: () => void;
 }
 
 const TAB_TITLES: Record<AdminViewTab, { title: string; category: string }> = {
@@ -39,7 +40,8 @@ export const AdminHeader: React.FC<AdminHeaderProps> = ({
   onLogout,
   onToggleMobileNav,
   isOpenMobileNav,
-  isRefreshing = false
+  isRefreshing = false,
+  onOpenAddLead
 }) => {
   const currentNav = TAB_TITLES[activeTab] || { title: 'Admin CRM', category: 'Dashboard' };
 
@@ -74,8 +76,21 @@ export const AdminHeader: React.FC<AdminHeaderProps> = ({
           </div>
         </div>
 
-        {/* Right: Actions, Refresh, User Profile, Sign Out */}
+        {/* Right: Actions, Add Lead, Refresh, User Profile, Sign Out */}
         <div className="flex items-center space-x-2 sm:space-x-3 shrink-0">
+          {/* + Add Lead Button */}
+          {onOpenAddLead && (
+            <button
+              type="button"
+              onClick={onOpenAddLead}
+              className="px-3 py-1.5 sm:px-3.5 sm:py-2 rounded-lg bg-amber-500 hover:bg-amber-600 text-slate-950 font-bold text-xs shadow-md shadow-amber-500/10 transition-colors flex items-center space-x-1.5 min-h-[36px]"
+              aria-label="Add new lead"
+            >
+              <Plus className="w-3.5 h-3.5" />
+              <span>+ Add Lead</span>
+            </button>
+          )}
+
           {/* User Email Pill */}
           {user && (
             <div className="hidden md:flex flex-col items-end mr-1">

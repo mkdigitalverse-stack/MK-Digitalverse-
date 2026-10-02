@@ -68,7 +68,7 @@ export type ChallengeCategory =
   | 'multiple';
 
 export type OpportunityStage = 'new' | 'contacted' | 'qualified' | 'discovery' | 'proposal' | 'negotiations' | 'won' | 'lost';
-export type DerivedLeadSource = 'organic' | 'google_ads' | 'meta_ads' | 'linkedin' | 'direct' | 'referral' | 'unknown';
+export type DerivedLeadSource = 'organic' | 'google_ads' | 'meta_ads' | 'linkedin' | 'direct' | 'referral' | 'admin_manual' | 'unknown';
 
 export type ProposalStatus = 'not_started' | 'draft' | 'sent' | 'viewed' | 'revision_requested' | 'accepted' | 'declined';
 export type LostReason = 'budget' | 'timing' | 'internal_decision' | 'competitor' | 'no_response' | 'not_a_fit' | 'scope' | 'other';

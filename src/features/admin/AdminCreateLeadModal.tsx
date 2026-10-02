@@ -21,19 +21,22 @@ import {
   Tag, 
   ShieldCheck, 
   Sparkles,
-  AlertCircle
+  AlertCircle,
+  ExternalLink
 } from 'lucide-react';
 
 interface AdminCreateLeadModalProps {
   isOpen: boolean;
   onClose: () => void;
   onCreated: (lead: CompleteLeadRecord) => void;
+  onViewExisting?: (leadId: string) => void;
 }
 
 export const AdminCreateLeadModal: React.FC<AdminCreateLeadModalProps> = ({
   isOpen,
   onClose,
-  onCreated
+  onCreated,
+  onViewExisting
 }) => {
   // Required fields
   const [contactName, setContactName] = useState<string>('');
@@ -58,10 +61,13 @@ export const AdminCreateLeadModal: React.FC<AdminCreateLeadModalProps> = ({
   const [shouldScheduleFollowUp, setShouldScheduleFollowUp] = useState<boolean>(false);
   const [nextFollowUpDate, setNextFollowUpDate] = useState<string>('');
   const [nextFollowUpTime, setNextFollowUpTime] = useState<string>('10:00');
-  const [nextFollowUpRemark, setNextFollowUpRemark] = useState<string>('Initial Outreach & Qualification Review');
+  const [nextFollowUpRemark, setNextFollowUpRemark] = useState<string>('Call Back Requested');
+
+  // Duplicate warning modal state
+  const [duplicateWarningOpen, setDuplicateWarningOpen] = useState<boolean>(false);
+  const [duplicateMatch, setDuplicateMatch] = useState<CompleteLeadRecord | null>(null);
 
   // UI status
-  const [duplicateMatch, setDuplicateMatch] = useState<CompleteLeadRecord | null>(null);
   const [errorMessage, setErrorMessage] = useState<string | null>(null);
   const [isSubmitting, setIsSubmitting] = useState<boolean>(false);
 
@@ -70,6 +76,7 @@ export const AdminCreateLeadModal: React.FC<AdminCreateLeadModalProps> = ({
     if (!isOpen) {
       setErrorMessage(null);
       setDuplicateMatch(null);
+      setDuplicateWarningOpen(false);
       return;
     }
     setContactName('');
@@ -97,42 +104,13 @@ export const AdminCreateLeadModal: React.FC<AdminCreateLeadModalProps> = ({
     setNextFollowUpTime('10:00');
     setNextFollowUpRemark('Call Back Requested');
     setDuplicateMatch(null);
+    setDuplicateWarningOpen(false);
     setErrorMessage(null);
   }, [isOpen]);
 
-  // Live duplicate email check
-  useEffect(() => {
-    if (email && email.includes('@') && email.length > 5) {
-      const match = adminLeadsService.checkDuplicateEmail(email);
-      setDuplicateMatch(match);
-    } else {
-      setDuplicateMatch(null);
-    }
-  }, [email]);
-
   if (!isOpen) return null;
 
-  const handleSubmit = async (e: React.FormEvent) => {
-    e.preventDefault();
-    setErrorMessage(null);
-
-    if (!contactName.trim()) {
-      setErrorMessage('Contact Name is required.');
-      return;
-    }
-    if (!email.trim() || !email.includes('@')) {
-      setErrorMessage('A valid Email address is required.');
-      return;
-    }
-    if (!phone.trim()) {
-      setErrorMessage('Phone Number is required.');
-      return;
-    }
-    if (!organizationName.trim()) {
-      setErrorMessage('Organization Name is required.');
-      return;
-    }
-
+  const executeLeadCreation = async () => {
     const payload: ManualLeadInput = {
       contactName: contactName.trim(),
       email: email.trim(),
@@ -168,8 +146,58 @@ export const AdminCreateLeadModal: React.FC<AdminCreateLeadModalProps> = ({
     }
   };
 
+  const handleSubmit = async (e: React.FormEvent) => {
+    e.preventDefault();
+    setErrorMessage(null);
+
+    if (!contactName.trim()) {
+      setErrorMessage('Contact Name is required.');
+      return;
+    }
+    if (!email.trim() || !email.includes('@')) {
+      setErrorMessage('A valid Email address is required.');
+      return;
+    }
+    if (!phone.trim()) {
+      setErrorMessage('Phone Number is required.');
+      return;
+    }
+    if (!organizationName.trim()) {
+      setErrorMessage('Organization Name is required.');
+      return;
+    }
+
+    // Check for potential duplicate using normalized email, phone, and org + contact
+    const foundDuplicate = adminLeadsService.checkDuplicateLead({
+      email,
+      phone,
+      contactName,
+      organizationName
+    });
+
+    if (foundDuplicate) {
+      setDuplicateMatch(foundDuplicate);
+      setDuplicateWarningOpen(true);
+      return;
+    }
+
+    await executeLeadCreation();
+  };
+
+  const handleCreateAnyway = async () => {
+    setDuplicateWarningOpen(false);
+    await executeLeadCreation();
+  };
+
+  const handleViewExisting = () => {
+    if (duplicateMatch && onViewExisting) {
+      onViewExisting(duplicateMatch.leadId);
+      onClose();
+    }
+  };
+
   return (
-    <div className="fixed inset-0 z-50 bg-slate-950/60 backdrop-blur-xs flex items-center justify-center p-4">
+    <div className="fixed inset-0 z-50 bg-slate-950/60 backdrop-blur-xs flex items-center justify-center p-3 sm:p-4">
       <div 
         className="w-full max-w-2xl bg-white rounded-2xl shadow-2xl border border-slate-200 overflow-hidden animate-in fade-in zoom-in-95 duration-150 flex flex-col max-h-[92vh]"
         role="dialog"
@@ -183,7 +211,7 @@ export const AdminCreateLeadModal: React.FC<AdminCreateLeadModalProps> = ({
               Admin Manual Intake
             </span>
             <h2 id="create-lead-title" className="text-base font-bold text-white tracking-tight mt-0.5">
-              + Add Lead
+              Add New Lead
             </h2>
             <p className="text-xs text-slate-300 mt-0.5">
               Directly onboard a prospective healthcare partner into the sales pipeline.
@@ -201,23 +229,8 @@ export const AdminCreateLeadModal: React.FC<AdminCreateLeadModalProps> = ({
         </div>
 
         {/* Scrollable Form Body */}
-        <form onSubmit={handleSubmit} className="p-5 space-y-4 overflow-y-auto flex-1 text-slate-800 text-xs">
+        <form onSubmit={handleSubmit} className="p-4 sm:p-5 space-y-4 overflow-y-auto flex-1 text-slate-800 text-xs">
           
-          {/* Duplicate Email Warning */}
-          {duplicateMatch && (
-            <div className="p-3.5 bg-amber-50 border border-amber-300 rounded-xl text-xs text-amber-900 flex items-start space-x-2.5 shadow-2xs">
-              <AlertTriangle className="w-4 h-4 text-amber-600 shrink-0 mt-0.5" />
-              <div>
-                <span className="font-bold block">Duplicate Contact Warning</span>
-                <span className="text-[11px] text-amber-800">
-                  A lead with email <strong>{email}</strong> already exists in CRM: 
-                  {' '}<span className="font-mono font-semibold">{duplicateMatch.visitorData.contactName} ({duplicateMatch.visitorData.organizationName || 'No Org'})</span>. 
-                  Proceeding will register an additional sales record.
-                </span>
-              </div>
-            </div>
-          )}
-
           {/* Validation Feedback Banner */}
           {errorMessage && (
             <div className="p-3 bg-red-50 border border-red-200 rounded-xl text-xs text-red-800 flex items-start space-x-2">
@@ -229,8 +242,8 @@ export const AdminCreateLeadModal: React.FC<AdminCreateLeadModalProps> = ({
           {/* SECTION 1: REQUIRED CONTACT INFORMATION */}
           <div className="space-y-3">
             <div className="text-[11px] font-bold text-slate-700 uppercase tracking-wider border-b border-slate-200 pb-1 flex items-center justify-between">
-              <span>Required Contact & Practice Details</span>
-              <span className="text-[10px] text-amber-700 font-mono font-normal">* Required</span>
+              <span>Required Details</span>
+              <span className="text-[10px] text-amber-700 font-mono font-semibold">* Marked fields are required</span>
             </div>
 
             <div className="grid grid-cols-1 sm:grid-cols-2 gap-3">
@@ -292,16 +305,16 @@ export const AdminCreateLeadModal: React.FC<AdminCreateLeadModalProps> = ({
             </div>
           </div>
 
-          {/* SECTION 2: OPTIONAL PRACTICE CONTEXT */}
+          {/* SECTION 2: OPTIONAL ORGANIZATION & QUALIFICATION DETAILS */}
           <div className="space-y-3 pt-2">
             <div className="text-[11px] font-bold text-slate-700 uppercase tracking-wider border-b border-slate-200 pb-1">
-              Practice Profile & Opportunity
+              Organization & Practice Profile
             </div>
 
             <div className="grid grid-cols-1 sm:grid-cols-3 gap-3">
               <div>
                 <label className="block text-[11px] font-semibold text-slate-700 mb-1">
-                  Healthcare Specialty
+                  Healthcare Category
                 </label>
                 <select
                   value={healthcareCategory}
@@ -324,7 +337,7 @@ export const AdminCreateLeadModal: React.FC<AdminCreateLeadModalProps> = ({
                 </label>
                 <input
                   type="url"
-                  placeholder="https://..."
+                  placeholder="https://apexortho.com"
                   value={website}
                   onChange={(e) => setWebsite(e.target.value)}
                   className="w-full bg-white border border-slate-300 rounded-lg px-3 py-2 text-xs text-slate-900 focus:ring-2 focus:ring-amber-500/20 focus:border-amber-500"
@@ -340,6 +353,34 @@ export const AdminCreateLeadModal: React.FC<AdminCreateLeadModalProps> = ({
                   placeholder="e.g. Mumbai, India"
                   value={location}
                   onChange={(e) => setLocation(e.target.value)}
+                  className="w-full bg-white border border-slate-300 rounded-lg px-3 py-2 text-xs text-slate-900 focus:ring-2 focus:ring-amber-500/20 focus:border-amber-500"
+                />
+              </div>
+            </div>
+
+            <div className="grid grid-cols-1 sm:grid-cols-2 gap-3">
+              <div>
+                <label className="block text-[11px] font-semibold text-slate-700 mb-1">
+                  Biggest Growth Challenge
+                </label>
+                <input
+                  type="text"
+                  placeholder="e.g. Inadequate high-value patient volume"
+                  value={biggestChallenge}
+                  onChange={(e) => setBiggestChallenge(e.target.value)}
+                  className="w-full bg-white border border-slate-300 rounded-lg px-3 py-2 text-xs text-slate-900 focus:ring-2 focus:ring-amber-500/20 focus:border-amber-500"
+                />
+              </div>
+
+              <div>
+                <label className="block text-[11px] font-semibold text-slate-700 mb-1">
+                  Growth Objective
+                </label>
+                <input
+                  type="text"
+                  placeholder="e.g. Expand surgical caseload by 30%"
+                  value={growthObjective}
+                  onChange={(e) => setGrowthObjective(e.target.value)}
                   className="w-full bg-white border border-slate-300 rounded-lg px-3 py-2 text-xs text-slate-900 focus:ring-2 focus:ring-amber-500/20 focus:border-amber-500"
                 />
               </div>
@@ -398,7 +439,7 @@ export const AdminCreateLeadModal: React.FC<AdminCreateLeadModalProps> = ({
                 </label>
                 <input
                   type="text"
-                  placeholder="Growth Partner Name"
+                  placeholder="e.g. Dr. K. Mehta"
                   value={assignedTo}
                   onChange={(e) => setAssignedTo(e.target.value)}
                   className="w-full bg-white border border-slate-300 rounded-lg px-3 py-2 text-xs text-slate-900 focus:ring-2 focus:ring-amber-500/20 focus:border-amber-500"
@@ -425,7 +466,7 @@ export const AdminCreateLeadModal: React.FC<AdminCreateLeadModalProps> = ({
               </label>
               <textarea
                 rows={2}
-                placeholder="Initial context, referral details, or special requirements..."
+                placeholder="Initial context, referral source details, or specific requirements..."
                 value={internalNotes}
                 onChange={(e) => setInternalNotes(e.target.value)}
                 className="w-full bg-white border border-slate-300 rounded-lg p-2.5 text-xs text-slate-900 focus:ring-2 focus:ring-amber-500/20 focus:border-amber-500 resize-none"
@@ -444,7 +485,7 @@ export const AdminCreateLeadModal: React.FC<AdminCreateLeadModalProps> = ({
                   className="rounded text-amber-600 focus:ring-amber-500 w-4 h-4"
                 />
                 <span className="text-xs font-bold text-slate-800">
-                  Schedule Initial Follow-Up Now
+                  Schedule Initial Follow-Up
                 </span>
               </label>
               <span className="text-[10px] text-slate-500 font-mono">Optional</span>
@@ -454,7 +495,7 @@ export const AdminCreateLeadModal: React.FC<AdminCreateLeadModalProps> = ({
               <div className="grid grid-cols-1 sm:grid-cols-3 gap-3 pt-2 animate-in fade-in duration-100">
                 <div>
                   <label className="block text-[11px] font-semibold text-slate-700 mb-1">
-                    Follow-Up Date
+                    Next Follow-Up Date
                   </label>
                   <input
                     type="date"
@@ -467,7 +508,7 @@ export const AdminCreateLeadModal: React.FC<AdminCreateLeadModalProps> = ({
 
                 <div>
                   <label className="block text-[11px] font-semibold text-slate-700 mb-1">
-                    Follow-Up Time
+                    Next Follow-Up Time
                   </label>
                   <input
                     type="time"
@@ -480,7 +521,7 @@ export const AdminCreateLeadModal: React.FC<AdminCreateLeadModalProps> = ({
 
                 <div>
                   <label className="block text-[11px] font-semibold text-slate-700 mb-1">
-                    Remark Option
+                    Follow-Up Remark
                   </label>
                   <select
                     value={nextFollowUpRemark}
@@ -509,7 +550,7 @@ export const AdminCreateLeadModal: React.FC<AdminCreateLeadModalProps> = ({
             <button
               type="submit"
               disabled={isSubmitting}
-              className="px-5 py-2 rounded-lg bg-amber-600 hover:bg-amber-700 text-white text-xs font-bold shadow-md transition-colors disabled:opacity-50 min-h-[40px] flex items-center space-x-1.5"
+              className="px-5 py-2 rounded-lg bg-amber-500 hover:bg-amber-600 text-slate-950 text-xs font-bold shadow-md transition-colors disabled:opacity-50 min-h-[40px] flex items-center space-x-1.5"
             >
               <Plus className={`w-3.5 h-3.5 ${isSubmitting ? 'animate-spin' : ''}`} />
               <span>{isSubmitting ? 'Creating Lead...' : 'Create Lead'}</span>
@@ -517,6 +558,86 @@ export const AdminCreateLeadModal: React.FC<AdminCreateLeadModalProps> = ({
           </div>
 
         </form>
+
+        {/* MODAL OVERLAY: DUPLICATE LEAD PROTECTION (ADM-10 Section 4) */}
+        {duplicateWarningOpen && duplicateMatch && (
+          <div className="absolute inset-0 bg-slate-950/80 backdrop-blur-xs flex items-center justify-center p-4 z-50 animate-in fade-in duration-100">
+            <div className="bg-white rounded-xl border border-amber-300 shadow-2xl p-5 max-w-md w-full space-y-4">
+              <div className="flex items-start space-x-3">
+                <div className="w-10 h-10 rounded-full bg-amber-100 border border-amber-300 flex items-center justify-center shrink-0">
+                  <AlertTriangle className="w-5 h-5 text-amber-600" />
+                </div>
+                <div>
+                  <h3 className="text-sm font-bold text-slate-900">
+                    Possible Existing Lead
+                  </h3>
+                  <p className="text-xs text-slate-600 mt-0.5">
+                    A lead with this email/phone already exists.
+                  </p>
+                </div>
+              </div>
+
+              {/* Existing Lead Summary Card */}
+              <div className="p-3 bg-amber-50/60 border border-amber-200 rounded-lg text-xs space-y-1">
+                <div className="font-semibold text-slate-900">
+                  {duplicateMatch.visitorData.contactName}
+                </div>
+                <div className="text-slate-600">
+                  Org: <strong>{duplicateMatch.visitorData.organizationName || 'N/A'}</strong>
+                </div>
+                <div className="text-slate-600 font-mono text-[11px]">
+                  Email: {duplicateMatch.visitorData.email} | Phone: {duplicateMatch.visitorData.phone || 'N/A'}
+                </div>
+                <div className="text-[11px] text-amber-800 font-semibold pt-1">
+                  Stage: <span className="uppercase">{duplicateMatch.status}</span>
+                </div>
+              </div>
+
+              <div className="text-[11px] text-slate-500">
+                You can view the existing lead, proceed with creating a separate opportunity, or cancel.
+              </div>
+
+              {/* Action buttons: [View Existing Lead] [Create Anyway] [Cancel] */}
+              <div className="grid grid-cols-3 gap-2 pt-1">
+                {onViewExisting ? (
+                  <button
+                    type="button"
+                    onClick={handleViewExisting}
+                    className="px-2 py-2 rounded-lg bg-slate-900 hover:bg-slate-800 text-white text-xs font-semibold text-center transition-colors truncate"
+                  >
+                    View Existing Lead
+                  </button>
+                ) : (
+                  <button
+                    type="button"
+                    onClick={() => setDuplicateWarningOpen(false)}
+                    className="px-2 py-2 rounded-lg bg-slate-900 hover:bg-slate-800 text-white text-xs font-semibold text-center transition-colors truncate"
+                  >
+                    View Lead
+                  </button>
+                )}
+
+                <button
+                  type="button"
+                  onClick={handleCreateAnyway}
+                  disabled={isSubmitting}
+                  className="px-2 py-2 rounded-lg bg-amber-500 hover:bg-amber-600 text-slate-950 text-xs font-bold text-center transition-colors truncate"
+                >
+                  Create Anyway
+                </button>
+
+                <button
+                  type="button"
+                  onClick={() => setDuplicateWarningOpen(false)}
+                  className="px-2 py-2 rounded-lg bg-slate-100 hover:bg-slate-200 text-slate-700 text-xs font-medium text-center transition-colors truncate"
+                >
+                  Cancel
+                </button>
+              </div>
+            </div>
+          </div>
+        )}
+
       </div>
     </div>
   );
