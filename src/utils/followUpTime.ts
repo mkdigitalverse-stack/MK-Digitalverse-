@@ -134,31 +134,33 @@ export function getFollowUpStatus(
   isoStr?: string | null,
   now: Date = new Date()
 ): 'OVERDUE' | 'DUE_TODAY' | 'UPCOMING' | 'UNSCHEDULED' {
-  if (!isoStr) return 'UNSCHEDULED';
+  if (!isoStr || typeof isoStr !== 'string' || !isoStr.trim()) {
+    return 'UNSCHEDULED';
+  }
 
   try {
-    const targetMs = new Date(isoStr).getTime();
+    const targetDate = new Date(isoStr.trim());
+    const targetMs = targetDate.getTime();
     if (isNaN(targetMs)) return 'UNSCHEDULED';
 
     const nowMs = now.getTime();
     if (targetMs < nowMs) {
+      // Timestamp earlier than now -> Overdue
       return 'OVERDUE';
     }
 
-    const endOfToday = new Date(
-      now.getFullYear(),
-      now.getMonth(),
-      now.getDate(),
-      23,
-      59,
-      59,
-      999
-    ).getTime();
+    // Check if on today's local calendar date
+    const isToday =
+      targetDate.getFullYear() === now.getFullYear() &&
+      targetDate.getMonth() === now.getMonth() &&
+      targetDate.getDate() === now.getDate();
 
-    if (targetMs <= endOfToday) {
+    if (isToday) {
+      // Timestamp later than now but on today's local calendar date -> Due Today
       return 'DUE_TODAY';
     }
 
+    // Timestamp on a later calendar date -> Upcoming
     return 'UPCOMING';
   } catch (_) {
     return 'UNSCHEDULED';

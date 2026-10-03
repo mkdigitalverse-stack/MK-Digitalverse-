@@ -95,7 +95,10 @@ export const AdminScheduleFollowUpModal: React.FC<AdminScheduleFollowUpModalProp
       // Default new schedule to tomorrow at 10:00 AM
       const tomorrow = new Date();
       tomorrow.setDate(tomorrow.getDate() + 1);
-      setDate(getDateInputValue(tomorrow.toISOString()));
+      const yyyy = tomorrow.getFullYear();
+      const mm = String(tomorrow.getMonth() + 1).padStart(2, '0');
+      const dd = String(tomorrow.getDate()).padStart(2, '0');
+      setDate(`${yyyy}-${mm}-${dd}`);
       setTime('10:00');
       setRemarkOption('Call Back Requested');
       setCustomRemark('');

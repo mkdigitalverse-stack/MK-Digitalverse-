@@ -131,27 +131,33 @@ export class FollowUpAutomationEngine {
     const daysInactive = this.calculateDaysSinceLastActivity(lead, now);
     const activityStatus = isClosed ? 'active' : this.getActivityStatus(daysInactive);
     const derivedNextAction = this.deriveNextAction(lead);
-
     const nowTime = now.getTime();
-    const endOfToday = new Date(now.getFullYear(), now.getMonth(), now.getDate(), 23, 59, 59, 999).getTime();
-
     let classification: FollowUpClassification = 'NO_FOLLOW_UP';
 
     const fAt = lead.qualification.nextFollowUpAt;
-    if (fAt) {
+    if (fAt && typeof fAt === 'string' && fAt.trim().length > 0) {
       try {
-        const fTime = new Date(fAt).getTime();
+        const targetDate = new Date(fAt.trim());
+        const fTime = targetDate.getTime();
         if (isNaN(fTime)) {
           classification = 'NO_FOLLOW_UP';
         } else if (fTime < nowTime) {
-          // OVERDUE: next_follow_up_at < current time
+          // Timestamp earlier than now -> Overdue
           classification = 'OVERDUE';
-        } else if (fTime <= endOfToday) {
-          // DUE TODAY: Follow-up occurs today but has not yet passed
-          classification = 'DUE_TODAY';
         } else {
-          // UPCOMING: Future date/time
-          classification = 'UPCOMING';
+          // Check if on today's local calendar date
+          const isToday =
+            targetDate.getFullYear() === now.getFullYear() &&
+            targetDate.getMonth() === now.getMonth() &&
+            targetDate.getDate() === now.getDate();
+
+          if (isToday) {
+            // Timestamp later than now but on today's local calendar date -> Due Today
+            classification = 'DUE_TODAY';
+          } else {
+            // Timestamp on a later calendar date -> Upcoming
+            classification = 'UPCOMING';
+          }
         }
       } catch (_) {
         classification = 'NO_FOLLOW_UP';
@@ -161,7 +167,7 @@ export class FollowUpAutomationEngine {
     }
 
     // Check if stale (active opportunity, no activity for 7+ days, AND unscheduled)
-    // "Do not allow a stale/health classification to incorrectly override a genuinely scheduled future follow-up."
+    // Never allow a stale/health classification to incorrectly override a genuinely scheduled follow-up
     if (!isClosed && daysInactive >= 7 && classification === 'NO_FOLLOW_UP') {
       classification = 'STALE_OPPORTUNITY';
     }

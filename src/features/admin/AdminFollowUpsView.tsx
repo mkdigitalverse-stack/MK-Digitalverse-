@@ -51,7 +51,10 @@ export const AdminFollowUpsView: React.FC<AdminFollowUpsViewProps> = ({
   const now = new Date();
   const healthSummary: PipelineHealthSummary = FollowUpAutomationEngine.calculatePipelineHealth(leads, now);
 
-  const activeLeads = leads.filter(l => l.qualification.opportunityStage !== 'won' && l.qualification.opportunityStage !== 'lost');
+  const activeLeads = leads.filter(l => {
+    const s = String(l.status || l.qualification.opportunityStage || 'new').toLowerCase().trim();
+    return s !== 'won' && s !== 'lost';
+  });
 
   const overdue: EvaluatedOpportunity[] = [];
   const dueToday: EvaluatedOpportunity[] = [];
