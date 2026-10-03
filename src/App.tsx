@@ -11,6 +11,12 @@ import { NotFoundPage } from './components/ui/NotFoundPage';
 import { useRouter } from './routes/router';
 import { analytics } from './services/analytics';
 
+/**
+ * GLOBAL TRACKING NOTICE:
+ * Google Tag Manager (GTM-KMHLT7VV) is installed at the application/document level (index.html).
+ * Do not paste the GTM "<head>" or "<body>" snippets into individual pages or components.
+ * Every new route automatically inherits the global GTM implementation.
+ */
 export default function App() {
   const [activeIndustry, setActiveIndustry] = useState<IndustryType>('healthcare');
   const [auditModalOpen, setAuditModalOpen] = useState<boolean>(false);

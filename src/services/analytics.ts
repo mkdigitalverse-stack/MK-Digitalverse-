@@ -1,13 +1,19 @@
 /**
  * Production Analytics & Tracking Architecture
- * Unified dispatch for Google Analytics 4, Meta Pixel, Google Ads Conversions, and DataLayer events.
+ * Unified dispatch for Google Tag Manager (GTM-KMHLT7VV), GA4, Meta Pixel, Google Ads, and DataLayer.
  *
- * PRIVACY GUARANTEE: Never transmits PII (names, emails, phone numbers) inside event parameters.
+ * GLOBAL TRACKING NOTICE:
+ * Google Tag Manager is installed at the application/document level (index.html).
+ * Do not paste the GTM "<head>" or "<body>" snippets into individual pages or components.
+ * Every new route automatically inherits the global GTM implementation.
+ *
+ * PRIVACY GUARANTEE: Never transmits PII (names, emails, phone numbers, health records) inside event parameters.
  */
 
 import { IndustryType } from '../types';
 import { SITE_CONFIG } from '../config/site';
 import { getAttributionData } from '../lib/utm';
+import { pushToDataLayer } from '../lib/gtm';
 
 export interface AnalyticsEventParams {
   category?: string;
@@ -235,12 +241,8 @@ class AnalyticsService {
       console.log(`[Analytics Event] 📊 ${eventName}`, params || '');
     }
 
-    if (typeof window !== 'undefined' && (window as any).dataLayer) {
-      (window as any).dataLayer.push({
-        event: eventName,
-        ...params
-      });
-    }
+    // Push safely to Google Tag Manager dataLayer with PII protection
+    pushToDataLayer(eventName, params);
 
     if (typeof window !== 'undefined' && typeof (window as any).gtag === 'function' && this.gaId) {
       (window as any).gtag('event', eventName, params);

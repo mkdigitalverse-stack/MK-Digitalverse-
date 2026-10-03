@@ -55,11 +55,15 @@ export async function submitGrowthAudit(payload: SubmitAuditPayload): Promise<{
     referrer: attribution.referrer
   };
 
-  // 1. Dispatch conversion analytics event
-  analytics.trackAuditRequest({
-    industry: payload.industry,
-    organizationName: payload.organizationName
-  });
+  // 1. Dispatch conversion analytics event (fail-safe & non-blocking)
+  try {
+    analytics.trackAuditRequest({
+      industry: payload.industry,
+      organizationName: payload.organizationName
+    });
+  } catch (analyticsErr) {
+    console.warn('[Audit] Non-blocking analytics tracking note:', analyticsErr);
+  }
 
   // 2. Persist lead via Supabase (submit_public_lead RPC / public.leads table) with offline fallback
   const result = await submitPublicLead(leadPayload);

@@ -1,6 +1,11 @@
 /**
  * Application Router Strategy & Navigation Hooks
  * Standardized client-side route management and smooth scroll anchor dispatcher.
+ *
+ * GLOBAL TRACKING NOTICE:
+ * Google Tag Manager (GTM-KMHLT7VV) is installed at the application/document level (index.html).
+ * Do not paste the GTM "<head>" or "<body>" snippets into individual pages or components.
+ * Every new route automatically inherits the global GTM implementation.
  */
 
 import { useState, useEffect } from 'react';
