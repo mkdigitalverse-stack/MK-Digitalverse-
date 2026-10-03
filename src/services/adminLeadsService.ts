@@ -20,6 +20,28 @@ import {
 } from './qualification';
 import { combineDateAndTime, formatFollowUpDateTime } from '../utils/followUpTime';
 
+/**
+ * Validates whether a string is a valid RFC 4122 UUID.
+ */
+export function isValidUuid(str: string): boolean {
+  if (!str || typeof str !== 'string') return false;
+  return /^[0-9a-f]{8}-[0-9a-f]{4}-[1-5][0-9a-f]{3}-[89ab][0-9a-f]{3}-[0-9a-f]{12}$/i.test(str.trim());
+}
+
+/**
+ * Generates an RFC 4122 compliant UUID v4 string.
+ */
+export function generateUuid(): string {
+  if (typeof crypto !== 'undefined' && typeof crypto.randomUUID === 'function') {
+    return crypto.randomUUID();
+  }
+  return 'xxxxxxxx-xxxx-4xxx-yxxx-xxxxxxxxxxxx'.replace(/[xy]/g, (c) => {
+    const r = (Math.random() * 16) | 0;
+    const v = c === 'x' ? r : (r & 0x3) | 0x8;
+    return v.toString(16);
+  });
+}
+
 export const AUTHORIZED_ADMIN_EMAIL = 'mkdigitalverse@gmail.com';
 
 export const VALID_PIPELINE_STAGES = [
@@ -419,10 +441,10 @@ class AdminLeadsService {
       
       // Deterministic state reconciliation:
       // Reconcile each remote lead by ID against existing confirmed records in memory.
-      // 1. If an existing record in memory has a strictly newer updatedAt timestamp than remote,
+      // 1. If an existing record in memory has a newer or equal updatedAt timestamp than remote,
       //    it means a recent confirmed action (schedule, reschedule, cancel, contact, stage update, etc.)
-      //    occurred and the remote query has not caught up or is a stale snapshot. The newer confirmed record WINS.
-      // 2. If the remote record is newer or equal, we accept the remote record, but preserve confirmed follow-up/qualification
+      //    occurred and the remote query has not caught up or is a stale snapshot. The local confirmed record WINS.
+      // 2. If the remote record is strictly newer, we accept the remote record, but preserve confirmed follow-up/qualification
       //    fields if the remote row omitted them (e.g. if specific columns are absent on the remote DB).
       // 3. Any local-only records (e.g. newly created manual leads not yet returned by remote query) are preserved.
       const reconciledMap = new Map<string, CompleteLeadRecord>();
@@ -433,18 +455,19 @@ class AdminLeadsService {
           const remoteTime = new Date(remote.updatedAt).getTime();
           const localTime = new Date(existing.updatedAt).getTime();
 
-          if (localTime > remoteTime) {
-            // Local confirmed record is strictly newer than incoming snapshot: PRESERVE LOCAL
+          if (localTime >= remoteTime) {
+            // Local confirmed record is newer or equal: PRESERVE LOCAL
             reconciledMap.set(existing.leadId, existing);
           } else {
-            // Remote record is newer or equal.
-            // If remote record didn't return follow-up fields (e.g. DB column absent) but local had confirmed them:
-            if (!remote.qualification.nextFollowUpAt && existing.qualification.nextFollowUpAt && (remoteTime === localTime || Math.abs(remoteTime - localTime) < 5000)) {
+            // Remote record is strictly newer.
+            // If remote record didn't return follow-up fields (e.g. DB column absent or schema mismatch)
+            // but local had confirmed them: preserve confirmed local follow-up fields
+            if (!remote.qualification.nextFollowUpAt && existing.qualification.nextFollowUpAt) {
               remote.qualification.nextFollowUpAt = existing.qualification.nextFollowUpAt;
               remote.qualification.nextFollowUpRemark = existing.qualification.nextFollowUpRemark;
               remote.qualification.nextFollowUpNote = existing.qualification.nextFollowUpNote;
             }
-            if (!remote.qualification.lastContactedAt && existing.qualification.lastContactedAt && (remoteTime === localTime || Math.abs(remoteTime - localTime) < 5000)) {
+            if (!remote.qualification.lastContactedAt && existing.qualification.lastContactedAt) {
               remote.qualification.lastContactedAt = existing.qualification.lastContactedAt;
             }
             // Preserve application-layer qualification calculations
@@ -588,9 +611,12 @@ class AdminLeadsService {
       targetStage = raw as ValidPipelineStage;
     }
 
-    if (!supabase) {
+    if (!supabase || !isValidUuid(leadId)) {
       const existing = this.cachedLeads.find(l => l.leadId === leadId);
       if (existing) {
+        if (supabase && !isValidUuid(leadId)) {
+          console.warn(`[AdminLeadsService] Lead ID "${leadId}" is not a valid UUID; updating local cache only.`);
+        }
         const timestamp = new Date().toISOString();
         const effectiveStage = targetStage || existing.status;
         const updatedRecord: CompleteLeadRecord = {
@@ -605,7 +631,9 @@ class AdminLeadsService {
             ...(updates.nextFollowUpNote !== undefined ? { nextFollowUpNote: updates.nextFollowUpNote || undefined } : {}),
             ...(updates.lastContactedAt !== undefined ? { lastContactedAt: updates.lastContactedAt || undefined } : {}),
             ...(updates.nextAction !== undefined ? { nextAction: updates.nextAction || '' } : {}),
+            ...(updates.assignedTo !== undefined ? { assignedTo: updates.assignedTo } : {}),
             ...(updates.leadPriority !== undefined ? { leadPriority: updates.leadPriority } : {}),
+            ...(updates.internalNotes !== undefined ? { internalNotes: updates.internalNotes } : {}),
             ...(updates.estimatedOpportunityValue !== undefined ? { 
               estimatedOpportunityValue: updates.estimatedOpportunityValue,
               weightedPipelineValue: Math.round(updates.estimatedOpportunityValue * (STAGE_PROBABILITIES[effectiveStage] ?? 0.05))
@@ -613,37 +641,61 @@ class AdminLeadsService {
           }
         };
         this.cachedLeads = this.cachedLeads.map(l => l.leadId === leadId ? updatedRecord : l);
+        try {
+          if (typeof localStorage !== 'undefined') {
+            localStorage.setItem('mk_leads_cache_v2', JSON.stringify(this.cachedLeads));
+          }
+        } catch (_) {}
         this.leadListeners.forEach(listener => { try { listener(this.cachedLeads); } catch (_) {} });
         return updatedRecord;
       }
-      throw new Error('Supabase client is not configured.');
+      if (!supabase) throw new Error('Supabase client is not configured.');
+      throw new Error(`Lead update failed: No record found with ID "${leadId}".`);
     }
 
     const timestamp = new Date().toISOString();
 
-    // 2. Map payload: public.leads.status is the SINGLE SOURCE OF TRUTH in the database.
-    // Send ONLY real columns existing on public.leads.
-    // DO NOT include opportunity_stage, stage_changed_at, stage_entered_at,
-    // stage_probability, estimated_opportunity_value, or weighted_pipeline_value.
+    // 2. Map payload: public.leads.status is the single source of truth for pipeline stage
     const mappedPayload: Record<string, any> = {
       updated_at: timestamp
     };
 
     if (targetStage !== undefined) {
-      // 1:1 mapping directly into public.leads.status
       mappedPayload.status = targetStage;
     }
-
     if (updates.nextFollowUpAt !== undefined) {
       mappedPayload.next_follow_up_at = updates.nextFollowUpAt || null;
     }
-
     if (updates.lastContactedAt !== undefined) {
       mappedPayload.last_contacted_at = updates.lastContactedAt || null;
     }
+    if (updates.nextFollowUpRemark !== undefined) {
+      mappedPayload.next_follow_up_remark = updates.nextFollowUpRemark || null;
+    }
+    if (updates.nextFollowUpNote !== undefined) {
+      mappedPayload.next_follow_up_note = updates.nextFollowUpNote || null;
+    }
+    if (updates.nextAction !== undefined) {
+      mappedPayload.next_action = updates.nextAction || null;
+    }
+    if (updates.estimatedOpportunityValue !== undefined) {
+      mappedPayload.estimated_opportunity_value = updates.estimatedOpportunityValue;
+    }
+    if (updates.currency !== undefined) {
+      mappedPayload.currency = updates.currency;
+    }
+    if (updates.assignedTo !== undefined) {
+      mappedPayload.assigned_to = updates.assignedTo || null;
+    }
+    if (updates.leadPriority !== undefined) {
+      mappedPayload.lead_priority = updates.leadPriority;
+    }
+    if (updates.internalNotes !== undefined) {
+      mappedPayload.internal_notes = updates.internalNotes;
+    }
 
     try {
-      // 3. Execute UPDATE against the correct lead ID and verify row update with .select('*').single()
+      // 3. Execute UPDATE against the confirmed lead UUID and verify row update with .select('*').single()
       let data: any = null;
       const res = await supabase
         .from('leads')
@@ -653,21 +705,45 @@ class AdminLeadsService {
         .single();
 
       if (res.error) {
-        // If optional timestamp columns are missing on remote table, fallback gracefully
+        // If optional extended columns are missing on remote table, fallback gracefully
         if (res.error.message?.includes('column') || (res.error as any).code === '42703') {
-          const fallbackPayload: Record<string, any> = { updated_at: timestamp };
-          if (targetStage !== undefined) fallbackPayload.status = targetStage;
+          const fallbackPayload: Record<string, any> = { 
+            updated_at: timestamp,
+            status: targetStage,
+            next_follow_up_at: updates.nextFollowUpAt !== undefined ? (updates.nextFollowUpAt || null) : undefined,
+            last_contacted_at: updates.lastContactedAt !== undefined ? (updates.lastContactedAt || null) : undefined
+          };
+          Object.keys(fallbackPayload).forEach(k => fallbackPayload[k] === undefined && delete fallbackPayload[k]);
+
           const fallbackRes = await supabase
             .from('leads')
             .update(fallbackPayload)
             .eq('id', leadId)
             .select('*')
             .single();
+
           if (fallbackRes.error) {
-            console.error('[AdminLeadsService] Error updating lead in Supabase fallback:', fallbackRes.error.message);
-            throw new Error(`Database update failed: ${fallbackRes.error.message}`);
+            if (fallbackRes.error.message?.includes('column') || (fallbackRes.error as any).code === '42703') {
+              const minimalPayload: Record<string, any> = { updated_at: timestamp };
+              if (targetStage !== undefined) minimalPayload.status = targetStage;
+              const minimalRes = await supabase
+                .from('leads')
+                .update(minimalPayload)
+                .eq('id', leadId)
+                .select('*')
+                .single();
+              if (minimalRes.error) {
+                console.error('[AdminLeadsService] Error updating lead in Supabase minimal fallback:', minimalRes.error.message);
+                throw new Error(`Database update failed: ${minimalRes.error.message}`);
+              }
+              data = minimalRes.data;
+            } else {
+              console.error('[AdminLeadsService] Error updating lead in Supabase fallback:', fallbackRes.error.message);
+              throw new Error(`Database update failed: ${fallbackRes.error.message}`);
+            }
+          } else {
+            data = fallbackRes.data;
           }
-          data = fallbackRes.data;
         } else {
           console.error('[AdminLeadsService] Error updating lead in Supabase:', res.error.message);
           throw new Error(`Database update failed: ${res.error.message}`);
@@ -898,24 +974,33 @@ class AdminLeadsService {
   }
 
   /**
-   * ADM-09: Marks lead contacted immediately.
-   * Updates last_contacted_at. Does NOT alter next_follow_up_at, status, value, or priority.
+   * ADM-09 / ADM-10A: Marks lead contacted immediately.
+   * Updates last_contacted_at, advances stage to CONTACTED if currently NEW. Persists.
    */
   public async markContacted(
     leadId: string,
     actor?: string
   ): Promise<CompleteLeadRecord> {
     const nowIso = new Date().toISOString();
-    const updatedLead = await this.updateLead(leadId, {
+    const existing = this.cachedLeads.find(l => l.leadId === leadId);
+    const updates: any = {
       lastContactedAt: nowIso
-    });
+    };
+    const shouldAdvance = existing && (existing.status === 'new' || existing.qualification.opportunityStage === 'new');
+    if (shouldAdvance) {
+      updates.status = 'contacted';
+      updates.opportunityStage = 'contacted';
+    }
+
+    const updatedLead = await this.updateLead(leadId, updates);
 
     await this.addActivity(leadId, {
       type: 'contacted',
-      description: 'Growth Partner recorded direct outreach / contact made with lead.',
+      description: `Growth Partner recorded direct outreach / contact made with lead.${shouldAdvance ? ' Advanced stage from NEW to CONTACTED.' : ''}`,
       actor: actor || updatedLead.qualification.assignedTo || 'Growth Partner',
       metadata: {
-        contactedAt: nowIso
+        contactedAt: nowIso,
+        stageAdvanced: Boolean(shouldAdvance)
       }
     });
 
@@ -993,52 +1078,66 @@ class AdminLeadsService {
     let createdRecord: CompleteLeadRecord;
 
     if (supabase) {
-      try {
-        const { data, error } = await supabase
-          .from('leads')
-          .insert(payload)
-          .select('*')
-          .single();
+      let data: any = null;
+      let insertError: any = null;
 
-        if (error) {
-          // If optional next_follow_up_at or qualification columns fail on remote, retry without optional columns
-          if (error.message?.includes('column') || (error as any).code === '42703') {
-            const basicPayload = {
-              name: sanitizedName,
-              contact_name: sanitizedName,
-              email: sanitizedEmail,
-              phone: input.phone.trim(),
-              organization_name: input.organizationName.trim(),
-              website: input.website?.trim() || '',
-              location: input.location?.trim() || '',
-              healthcare_category: input.healthcareCategory?.trim() || '',
-              biggest_challenge: input.biggestChallenge?.trim() || '',
-              growth_objective: input.growthObjective?.trim() || '',
-              status: 'new',
-              opportunity_stage: 'new',
-              stage_probability: 0.05,
-              lead_type: 'contact_enquiry',
-              utm_source: 'admin_manual',
-              created_at: timestamp,
-              updated_at: timestamp
-            };
-            const fallback = await supabase.from('leads').insert(basicPayload).select('*').single();
-            if (fallback.error) throw new Error(fallback.error.message);
-            createdRecord = this.mapRowToCompleteLeadRecord(fallback.data);
+      const res = await supabase
+        .from('leads')
+        .insert(payload)
+        .select('*')
+        .single();
+
+      if (res.error) {
+        // If optional extended columns fail on remote (code 42703 / column not found), retry with base schema columns
+        if (res.error.message?.includes('column') || (res.error as any).code === '42703') {
+          console.warn('[AdminLeadsService] Retrying lead creation with canonical base columns:', res.error.message);
+          const basePayload: Record<string, any> = {
+            name: sanitizedName,
+            contact_name: sanitizedName,
+            email: sanitizedEmail,
+            phone: input.phone.trim(),
+            organization_name: input.organizationName.trim(),
+            website: input.website?.trim() || '',
+            location: input.location?.trim() || '',
+            healthcare_category: input.healthcareCategory?.trim() || '',
+            biggest_challenge: input.biggestChallenge?.trim() || '',
+            growth_objective: input.growthObjective?.trim() || '',
+            status: 'new',
+            lead_type: 'contact_enquiry',
+            utm_source: 'admin_manual',
+            created_at: timestamp,
+            updated_at: timestamp
+          };
+          const fallbackRes = await supabase
+            .from('leads')
+            .insert(basePayload)
+            .select('*')
+            .single();
+
+          if (fallbackRes.error) {
+            insertError = fallbackRes.error;
           } else {
-            throw new Error(error.message);
+            data = fallbackRes.data;
           }
         } else {
-          createdRecord = this.mapRowToCompleteLeadRecord(data);
+          insertError = res.error;
         }
-      } catch (err: any) {
-        console.warn('[AdminLeadsService] Supabase insert note, falling back to local creation:', err);
-        const localId = `lead_manual_${Date.now()}`;
-        createdRecord = this.mapRowToCompleteLeadRecord({ ...payload, id: localId });
+      } else {
+        data = res.data;
       }
+
+      if (insertError || !data) {
+        const errorMsg = insertError?.message || 'Database insert returned no row';
+        console.error('[AdminLeadsService] Database lead creation failed:', errorMsg);
+        throw new Error(`Database lead creation failed: ${errorMsg}`);
+      }
+
+      // Confirmed database row returned by Supabase with its genuine database UUID
+      createdRecord = this.mapRowToCompleteLeadRecord(data);
     } else {
-      const localId = `lead_manual_${Date.now()}`;
-      createdRecord = this.mapRowToCompleteLeadRecord({ ...payload, id: localId });
+      // Offline/mock development mode: use a valid RFC 4122 UUID v4
+      const localUuid = generateUuid();
+      createdRecord = this.mapRowToCompleteLeadRecord({ ...payload, id: localUuid });
     }
 
     // Apply manual qualification attributes
@@ -1202,6 +1301,20 @@ class AdminLeadsService {
   public async addActivity(leadId: string, activity: Omit<LeadActivity, 'id' | 'timestamp'>): Promise<void> {
     if (!supabase) {
       console.warn('[AdminLeadsService] Supabase client is not configured; cannot record activity.');
+      return;
+    }
+
+    if (!isValidUuid(leadId)) {
+      console.warn(`[AdminLeadsService] Cannot persist activity for non-UUID leadId "${leadId}" to database.`);
+      const mockActivity: LeadActivity = {
+        id: generateUuid(),
+        type: activity.type,
+        description: activity.description,
+        actor: activity.actor || 'Growth Partner',
+        timestamp: new Date().toISOString(),
+        metadata: activity.metadata
+      };
+      this.notifyLocalActivityListeners(leadId, mockActivity);
       return;
     }
 

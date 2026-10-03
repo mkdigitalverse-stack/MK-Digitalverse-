@@ -22,7 +22,8 @@ import {
   ShieldCheck, 
   Sparkles,
   AlertCircle,
-  ExternalLink
+  ExternalLink,
+  Loader2
 } from 'lucide-react';
 
 interface AdminCreateLeadModalProps {
@@ -550,9 +551,13 @@ export const AdminCreateLeadModal: React.FC<AdminCreateLeadModalProps> = ({
             <button
               type="submit"
               disabled={isSubmitting}
-              className="px-5 py-2 rounded-lg bg-amber-500 hover:bg-amber-600 text-slate-950 text-xs font-bold shadow-md transition-colors disabled:opacity-50 min-h-[40px] flex items-center space-x-1.5"
+              className="px-5 py-2 rounded-lg bg-amber-500 hover:bg-amber-600 text-slate-950 text-xs font-bold shadow-md transition-colors disabled:opacity-50 min-h-[40px] flex items-center space-x-1.5 cursor-pointer disabled:cursor-not-allowed"
             >
-              <Plus className={`w-3.5 h-3.5 ${isSubmitting ? 'animate-spin' : ''}`} />
+              {isSubmitting ? (
+                <Loader2 className="w-3.5 h-3.5 animate-spin" />
+              ) : (
+                <Plus className="w-3.5 h-3.5" />
+              )}
               <span>{isSubmitting ? 'Creating Lead...' : 'Create Lead'}</span>
             </button>
           </div>

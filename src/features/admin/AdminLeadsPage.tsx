@@ -52,6 +52,7 @@ import {
   TrendingUp,
   Award,
   CheckCircle2,
+  AlertCircle,
   Download
 } from 'lucide-react';
 
@@ -259,11 +260,33 @@ export const AdminLeadsPage: React.FC<AdminLeadsPageProps> = ({ onReturnHome }) 
   };
 
   const handleSaveLead = async (leadId: string, updates: any) => {
-    const updatedLead = await adminLeadsService.updateLead(leadId, updates);
-    setLeads(prevLeads =>
-      prevLeads.map(l => (l.leadId === leadId ? updatedLead : l))
-    );
-    setSelectedLead(prev => (prev && prev.leadId === leadId ? updatedLead : prev));
+    const originalLead = leads.find(l => l.leadId === leadId);
+    try {
+      const updatedLead = await adminLeadsService.updateLead(leadId, updates);
+      setLeads(prevLeads =>
+        prevLeads.map(l => (l.leadId === leadId ? updatedLead : l))
+      );
+      setSelectedLead(prev => (prev && prev.leadId === leadId ? updatedLead : prev));
+      setExportFeedback({
+        message: 'Lead updated successfully.',
+        type: 'success'
+      });
+      setTimeout(() => setExportFeedback(null), 3500);
+    } catch (err: any) {
+      console.error('[AdminLeadsPage] Failed to save lead:', err);
+      if (originalLead) {
+        setLeads(prevLeads =>
+          prevLeads.map(l => (l.leadId === leadId ? originalLead : l))
+        );
+        setSelectedLead(prev => (prev && prev.leadId === leadId ? originalLead : prev));
+      }
+      setExportFeedback({
+        message: `Failed to update lead: ${err?.message || 'Database error'}`,
+        type: 'error'
+      });
+      setTimeout(() => setExportFeedback(null), 5000);
+      throw err;
+    }
   };
 
   const handleLeadUpdated = (updatedRecord: CompleteLeadRecord) => {
@@ -276,7 +299,7 @@ export const AdminLeadsPage: React.FC<AdminLeadsPageProps> = ({ onReturnHome }) 
   const handleLeadCreated = (newLead: CompleteLeadRecord) => {
     setLeads(prevLeads => [newLead, ...prevLeads.filter(l => l.leadId !== newLead.leadId)]);
     setExportFeedback({
-      message: `Lead created successfully: ${newLead.visitorData.contactName} (${newLead.visitorData.organizationName || 'New Lead'})`,
+      message: 'Lead created successfully.',
       type: 'success'
     });
     setTimeout(() => setExportFeedback(null), 4000);
@@ -291,27 +314,51 @@ export const AdminLeadsPage: React.FC<AdminLeadsPageProps> = ({ onReturnHome }) 
 
   const handleUpdateStage = async (leadId: string, newStage: OpportunityStage) => {
     const targetLead = leads.find(l => l.leadId === leadId);
-    const estVal = targetLead?.qualification.estimatedOpportunityValue || 0;
-    const oldStage = targetLead?.status || targetLead?.qualification.opportunityStage || 'new';
+    if (!targetLead) return;
+    const estVal = targetLead.qualification.estimatedOpportunityValue || 0;
+    const oldStage = targetLead.status || targetLead.qualification.opportunityStage || 'new';
     
-    // Explicitly write status: newStage to public.leads
-    const updatedRecord = await adminLeadsService.updateLead(leadId, { 
-      status: newStage,
-      opportunityStage: newStage,
-      estimatedOpportunityValue: estVal
-    });
-
-    setLeads(prevLeads =>
-      prevLeads.map(l => (l.leadId === leadId ? updatedRecord : l))
-    );
-    setSelectedLead(prev => (prev && prev.leadId === leadId ? updatedRecord : prev));
-
-    if (oldStage !== newStage) {
-      await adminLeadsService.addActivity(leadId, {
-        type: 'stage_change',
-        description: `Moved stage from ${oldStage.toUpperCase()} to ${newStage.toUpperCase()}`,
-        actor: targetLead?.qualification.assignedTo || 'Growth Partner'
+    try {
+      // Explicitly write status: newStage to public.leads
+      const updatedRecord = await adminLeadsService.updateLead(leadId, { 
+        status: newStage,
+        opportunityStage: newStage,
+        estimatedOpportunityValue: estVal
       });
+
+      setLeads(prevLeads =>
+        prevLeads.map(l => (l.leadId === leadId ? updatedRecord : l))
+      );
+      setSelectedLead(prev => (prev && prev.leadId === leadId ? updatedRecord : prev));
+
+      if (oldStage !== newStage) {
+        try {
+          await adminLeadsService.addActivity(leadId, {
+            type: 'stage_change',
+            description: `Moved stage from ${oldStage.toUpperCase()} to ${newStage.toUpperCase()}`,
+            actor: targetLead.qualification.assignedTo || 'Growth Partner'
+          });
+        } catch (_) {}
+      }
+
+      setExportFeedback({
+        message: `Pipeline stage moved to ${newStage.toUpperCase()}`,
+        type: 'success'
+      });
+      setTimeout(() => setExportFeedback(null), 3000);
+    } catch (err: any) {
+      console.error('[AdminLeadsPage] Stage update failed:', err);
+      // Revert the UI state to the last confirmed database state
+      setLeads(prevLeads =>
+        prevLeads.map(l => (l.leadId === leadId ? targetLead : l))
+      );
+      setSelectedLead(prev => (prev && prev.leadId === leadId ? targetLead : prev));
+      setExportFeedback({
+        message: `Failed to update stage: ${err?.message || 'Database update error'}`,
+        type: 'error'
+      });
+      setTimeout(() => setExportFeedback(null), 5000);
+      throw err;
     }
   };
 
@@ -607,6 +654,36 @@ export const AdminLeadsPage: React.FC<AdminLeadsPageProps> = ({ onReturnHome }) 
               </div>
             )}
 
+            {/* Global Operation Feedback Toast Banner */}
+            {exportFeedback && (
+              <div className={`p-3 sm:p-4 rounded-xl text-xs font-semibold flex items-center justify-between shadow-xs animate-in fade-in ${
+                exportFeedback.type === 'error'
+                  ? 'bg-red-50 border border-red-300 text-red-900'
+                  : 'bg-emerald-50 border border-emerald-300 text-emerald-900'
+              }`}>
+                <div className="flex items-center space-x-2">
+                  {exportFeedback.type === 'error' ? (
+                    <AlertCircle className="w-4 h-4 text-red-600 shrink-0" />
+                  ) : (
+                    <CheckCircle2 className="w-4 h-4 text-emerald-600 shrink-0" />
+                  )}
+                  <span>{exportFeedback.message}</span>
+                </div>
+                <button
+                  type="button"
+                  onClick={() => setExportFeedback(null)}
+                  className={`p-1 rounded-md transition-colors ${
+                    exportFeedback.type === 'error'
+                      ? 'text-red-700 hover:text-red-900 hover:bg-red-100'
+                      : 'text-emerald-700 hover:text-emerald-900 hover:bg-emerald-100'
+                  }`}
+                  aria-label="Dismiss notice"
+                >
+                  <X className="w-3.5 h-3.5" />
+                </button>
+              </div>
+            )}
+
             {/* TAB 1: OVERVIEW (Operational Dashboard) */}
             {activeTab === 'overview' && (
               <AdminOverviewView
@@ -645,22 +722,6 @@ export const AdminLeadsPage: React.FC<AdminLeadsPageProps> = ({ onReturnHome }) 
                     <span>+ Add Lead</span>
                   </button>
                 </div>
-                {exportFeedback && (
-                  <div className="p-3 sm:p-4 bg-emerald-50 border border-emerald-300 text-emerald-900 rounded-xl text-xs font-semibold flex items-center justify-between shadow-xs animate-in fade-in">
-                    <div className="flex items-center space-x-2">
-                      <CheckCircle2 className="w-4 h-4 text-emerald-600 shrink-0" />
-                      <span>{exportFeedback.message}</span>
-                    </div>
-                    <button
-                      type="button"
-                      onClick={() => setExportFeedback(null)}
-                      className="p-1 text-emerald-700 hover:text-emerald-900 rounded-md hover:bg-emerald-100 transition-colors"
-                      aria-label="Dismiss export notice"
-                    >
-                      <X className="w-3.5 h-3.5" />
-                    </button>
-                  </div>
-                )}
 
                 <AdminLeadFilters
                   filters={filters}
