@@ -529,6 +529,15 @@ class AdminLeadsService {
                 local.qualification.estimatedOpportunityValue * (STAGE_PROBABILITIES[remote.qualification.opportunityStage] ?? 0.05)
               );
             }
+            if ((!remote.qualification.assignedTo || remote.qualification.assignedTo === 'Unassigned') && (local.qualification.assignedTo && local.qualification.assignedTo !== 'Unassigned')) {
+              remote.qualification.assignedTo = local.qualification.assignedTo;
+            }
+            if (!remote.qualification.nextAction && local.qualification.nextAction) {
+              remote.qualification.nextAction = local.qualification.nextAction;
+            }
+            if (!remote.qualification.internalNotes && local.qualification.internalNotes) {
+              remote.qualification.internalNotes = local.qualification.internalNotes;
+            }
             reconciledMap.set(remote.leadId, remote);
           }
         } else {
@@ -700,8 +709,6 @@ class AdminLeadsService {
 
     if (targetStage !== undefined) {
       mappedPayload.status = targetStage;
-      mappedPayload.opportunity_stage = targetStage;
-      mappedPayload.stage_probability = STAGE_PROBABILITIES[targetStage] ?? 0.05;
       mappedPayload.stage_changed_at = timestamp;
     }
     if (updates.nextFollowUpAt !== undefined) {
@@ -720,13 +727,14 @@ class AdminLeadsService {
       mappedPayload.next_action = updates.nextAction ? updates.nextAction.trim() : null;
     }
     if (updates.estimatedOpportunityValue !== undefined) {
-      mappedPayload.estimated_opportunity_value = updates.estimatedOpportunityValue;
+      mappedPayload.estimated_opportunity_value = updates.estimatedOpportunityValue !== null && !isNaN(Number(updates.estimatedOpportunityValue)) ? Number(updates.estimatedOpportunityValue) : null;
     }
     if (updates.currency !== undefined) {
       mappedPayload.currency = updates.currency;
     }
     if (updates.assignedTo !== undefined) {
-      mappedPayload.assigned_to = updates.assignedTo ? updates.assignedTo.trim() : null;
+      const trimmed = updates.assignedTo ? updates.assignedTo.trim() : '';
+      mappedPayload.assigned_to = (trimmed && isValidUuid(trimmed)) ? trimmed : null;
     }
     if (updates.leadPriority !== undefined) {
       mappedPayload.lead_priority = updates.leadPriority;
@@ -751,10 +759,11 @@ class AdminLeadsService {
           const fallbackPayload: Record<string, any> = { 
             updated_at: timestamp,
             status: targetStage,
-            opportunity_stage: targetStage,
             next_follow_up_at: updates.nextFollowUpAt !== undefined ? (updates.nextFollowUpAt ? new Date(updates.nextFollowUpAt).toISOString() : null) : undefined,
             next_follow_up_remark: updates.nextFollowUpRemark !== undefined ? (updates.nextFollowUpRemark ? updates.nextFollowUpRemark.trim() : null) : undefined,
-            last_contacted_at: updates.lastContactedAt !== undefined ? (updates.lastContactedAt ? new Date(updates.lastContactedAt).toISOString() : null) : undefined
+            next_follow_up_note: updates.nextFollowUpNote !== undefined ? (updates.nextFollowUpNote ? updates.nextFollowUpNote.trim() : null) : undefined,
+            last_contacted_at: updates.lastContactedAt !== undefined ? (updates.lastContactedAt ? new Date(updates.lastContactedAt).toISOString() : null) : undefined,
+            next_action: updates.nextAction !== undefined ? (updates.nextAction ? updates.nextAction.trim() : null) : undefined
           };
           Object.keys(fallbackPayload).forEach(k => fallbackPayload[k] === undefined && delete fallbackPayload[k]);
 
@@ -1079,6 +1088,7 @@ class AdminLeadsService {
       contact_name: sanitizedName,
       email: sanitizedEmail,
       phone: input.phone.trim(),
+      organization: input.organizationName.trim(),
       organization_name: input.organizationName.trim(),
       website: input.website?.trim() || '',
       location: input.location?.trim() || '',
@@ -1086,8 +1096,6 @@ class AdminLeadsService {
       biggest_challenge: input.biggestChallenge?.trim() || '',
       growth_objective: input.growthObjective?.trim() || '',
       status: 'new',
-      opportunity_stage: 'new',
-      stage_probability: 0.05,
       stage_entered_at: timestamp,
       stage_changed_at: timestamp,
       lead_type: 'contact_enquiry',
@@ -1103,7 +1111,10 @@ class AdminLeadsService {
       payload.currency = input.currency;
     }
     if (input.assignedTo) {
-      payload.assigned_to = input.assignedTo.trim();
+      const trimmed = input.assignedTo.trim();
+      if (trimmed && isValidUuid(trimmed)) {
+        payload.assigned_to = trimmed;
+      }
     }
     if (input.leadPriority) {
       payload.lead_priority = input.leadPriority;
@@ -1142,6 +1153,7 @@ class AdminLeadsService {
             contact_name: sanitizedName,
             email: sanitizedEmail,
             phone: input.phone.trim(),
+            organization: input.organizationName.trim(),
             organization_name: input.organizationName.trim(),
             website: input.website?.trim() || '',
             location: input.location?.trim() || '',
@@ -1149,8 +1161,6 @@ class AdminLeadsService {
             biggest_challenge: input.biggestChallenge?.trim() || '',
             growth_objective: input.growthObjective?.trim() || '',
             status: 'new',
-            opportunity_stage: 'new',
-            stage_probability: 0.05,
             lead_type: 'contact_enquiry',
             utm_source: 'admin_manual',
             created_at: timestamp,
