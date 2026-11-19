@@ -13,6 +13,7 @@
  */
 
 import { supabase } from './supabase';
+import { ReportingDateService } from './reportingDateService';
 import {
   ClientRecord,
   InvoiceRecord,
@@ -37,7 +38,9 @@ class FinanceService {
   private cachedExpenses: ExpenseRecord[] = [];
 
   constructor() {
-    this.initLocalCache();
+    if (!supabase) {
+      this.initLocalCache();
+    }
   }
 
   private initLocalCache() {
@@ -79,38 +82,35 @@ class FinanceService {
 
   public async getClients(): Promise<ClientRecord[]> {
     if (supabase) {
-      try {
-        const { data, error } = await supabase
-          .from('clients')
-          .select('*')
-          .order('created_at', { ascending: false });
+      const { data, error } = await supabase
+        .from('clients')
+        .select('*')
+        .order('created_at', { ascending: false });
 
-        if (!error && data) {
-          const mapped: ClientRecord[] = data.map((row: any) => ({
-            id: row.id,
-            leadId: row.lead_id,
-            name: row.name,
-            organizationName: row.organization_name,
-            email: row.email,
-            phone: row.phone || '',
-            healthcareCategory: row.healthcare_category || '',
-            billingAddress: row.billing_address || '',
-            taxIdentifier: row.tax_identifier || '',
-            currencyCode: row.currency_code || 'INR',
-            status: row.status || 'active',
-            contractStartDate: row.contract_start_date,
-            contractEndDate: row.contract_end_date,
-            notes: row.notes || '',
-            createdAt: row.created_at,
-            updatedAt: row.updated_at
-          }));
-          this.cachedClients = mapped;
-          this.saveLocalCache();
-          return mapped;
-        }
-      } catch (e) {
-        console.warn('[FinanceService] Supabase clients query fallback to cache:', e);
+      if (error) {
+        throw new Error(`Failed to load clients: ${error.message}`);
       }
+
+      const mapped: ClientRecord[] = (data || []).map((row: any) => ({
+        id: row.id,
+        leadId: row.lead_id,
+        name: row.name,
+        organizationName: row.organization_name,
+        email: row.email,
+        phone: row.phone || '',
+        healthcareCategory: row.healthcare_category || '',
+        billingAddress: row.billing_address || '',
+        taxIdentifier: row.tax_identifier || '',
+        currencyCode: row.currency_code || 'INR',
+        status: row.status || 'active',
+        contractStartDate: row.contract_start_date,
+        contractEndDate: row.contract_end_date,
+        notes: row.notes || '',
+        createdAt: row.created_at,
+        updatedAt: row.updated_at
+      }));
+      this.cachedClients = mapped;
+      return mapped;
     }
     return [...this.cachedClients];
   }
@@ -265,48 +265,55 @@ class FinanceService {
   // INVOICES & RECONCILIATION
   // ============================================================================
 
-  public async getInvoices(): Promise<InvoiceRecord[]> {
-    let rawInvoices: any[] = [];
-    const payments = await this.getPayments();
-    const clients = await this.getClients();
-    const clientMap = new Map<string, ClientRecord>(clients.map(c => [c.id, c]));
-
+  /**
+   * Independent raw invoice query against Supabase (does not depend on clients or payments queries).
+   */
+  public async getRawInvoices(): Promise<any[]> {
     if (supabase) {
-      try {
-        const { data, error } = await supabase
-          .from('invoices')
-          .select('*')
-          .order('issue_date', { ascending: false });
+      const { data, error } = await supabase
+        .from('invoices')
+        .select('*')
+        .order('issue_date', { ascending: false });
 
-        if (!error && data) {
-          rawInvoices = data;
-        }
-      } catch (e) {
-        console.warn('[FinanceService] Supabase invoices query fallback:', e);
+      if (error) {
+        throw new Error(`Failed to load invoices: ${error.message}`);
       }
+
+      return data || [];
     }
 
-    if (rawInvoices.length === 0 && this.cachedInvoices.length > 0) {
-      rawInvoices = this.cachedInvoices.map(inv => ({
-        id: inv.id,
-        client_id: inv.clientId,
-        invoice_number: inv.invoiceNumber,
-        title: inv.title,
-        issue_date: inv.issueDate,
-        due_date: inv.dueDate,
-        amount_subtotal: inv.amountSubtotal,
-        tax_rate: inv.taxRate,
-        tax_amount: inv.taxAmount,
-        amount_total: inv.amountTotal,
-        currency_code: inv.currencyCode,
-        status: inv.status,
-        notes: inv.notes,
-        created_at: inv.createdAt,
-        updated_at: inv.updatedAt
-      }));
-    }
+    return this.cachedInvoices.map(inv => ({
+      id: inv.id,
+      client_id: inv.clientId,
+      invoice_number: inv.invoiceNumber,
+      title: inv.title,
+      issue_date: inv.issueDate,
+      due_date: inv.dueDate,
+      amount_subtotal: inv.amountSubtotal,
+      tax_rate: inv.taxRate,
+      tax_amount: inv.taxAmount,
+      amount_total: inv.amountTotal,
+      currency_code: inv.currencyCode,
+      status: inv.status,
+      notes: inv.notes,
+      created_at: inv.createdAt,
+      updated_at: inv.updatedAt
+    }));
+  }
 
-    const todayStr = new Date().toISOString().split('T')[0];
+  /**
+   * Reconciles raw invoice rows against clients and completed payments.
+   * - Completed payments only reduce outstanding balance (refunded/reversed excluded).
+   * - Cancelled invoices always have zero outstanding balance.
+   * - Draft invoices never transition to overdue.
+   */
+  public reconcileInvoices(
+    rawInvoices: any[],
+    clients: ClientRecord[],
+    payments: PaymentRecord[]
+  ): InvoiceRecord[] {
+    const clientMap = new Map<string, ClientRecord>(clients.map(c => [c.id, c]));
+    const todayStr = ReportingDateService.toLocalDateString(new Date());
 
     const reconciled: InvoiceRecord[] = rawInvoices.map((row: any) => {
       const client = clientMap.get(row.client_id);
@@ -316,13 +323,22 @@ class FinanceService {
       const matchingPayments = payments.filter(
         p => p.invoiceId === invoiceId && p.status === 'completed'
       );
-      const amountPaid = matchingPayments.reduce((acc, p) => acc + Number(p.amount || 0), 0);
+      const amountPaid = Math.round(
+        matchingPayments.reduce((acc, p) => acc + Number(p.amount || 0), 0) * 100
+      ) / 100;
       const amountTotal = Number(row.amount_total || 0);
-      const amountOutstanding = Math.max(0, Math.round((amountTotal - amountPaid) * 100) / 100);
+      const rawStatus: InvoiceStatus = row.status || 'draft';
+      const isCancelled = rawStatus === 'cancelled';
+      const isDraft = rawStatus === 'draft';
+      const amountOutstanding = isCancelled
+        ? 0
+        : Math.max(0, Math.round((amountTotal - amountPaid) * 100) / 100);
 
-      let calculatedStatus: InvoiceStatus = row.status || 'draft';
-      if (row.status === 'cancelled') {
+      let calculatedStatus: InvoiceStatus = rawStatus;
+      if (isCancelled) {
         calculatedStatus = 'cancelled';
+      } else if (isDraft) {
+        calculatedStatus = 'draft';
       } else if (amountOutstanding <= 0.01 && amountPaid > 0) {
         calculatedStatus = 'paid';
       } else if (amountPaid > 0 && amountOutstanding > 0.01) {
@@ -345,7 +361,7 @@ class FinanceService {
         taxAmount: Number(row.tax_amount || 0),
         amountTotal,
         currencyCode: row.currency_code || 'INR',
-        status: row.status || 'draft',
+        status: rawStatus,
         notes: row.notes || '',
         createdAt: row.created_at,
         updatedAt: row.updated_at,
@@ -357,8 +373,20 @@ class FinanceService {
     });
 
     this.cachedInvoices = reconciled;
-    this.saveLocalCache();
+    if (!supabase) {
+      this.saveLocalCache();
+    }
     return reconciled;
+  }
+
+  public async getInvoices(options?: {
+    clients?: ClientRecord[];
+    payments?: PaymentRecord[];
+  }): Promise<InvoiceRecord[]> {
+    const rawInvoices = await this.getRawInvoices();
+    const payments = options?.payments ?? (await this.getPayments());
+    const clients = options?.clients ?? (await this.getClients());
+    return this.reconcileInvoices(rawInvoices, clients, payments);
   }
 
   public async generateNextInvoiceNumber(prefix: string = 'MK'): Promise<string> {
@@ -481,43 +509,40 @@ class FinanceService {
 
   public async getPayments(): Promise<PaymentRecord[]> {
     if (supabase) {
-      try {
-        const { data, error } = await supabase
-          .from('payments')
-          .select(`
+      const { data, error } = await supabase
+        .from('payments')
+        .select(`
             *,
             clients:client_id (name, organization_name),
             invoices:invoice_id (invoice_number)
           `)
-          .order('payment_date', { ascending: false });
+        .order('payment_date', { ascending: false });
 
-        if (!error && data) {
-          const mapped: PaymentRecord[] = data.map((row: any) => ({
-            id: row.id,
-            invoiceId: row.invoice_id || null,
-            clientId: row.client_id,
-            clientName: row.clients?.name || 'Unknown Client',
-            organizationName: row.clients?.organization_name || '',
-            invoiceNumber: row.invoices?.invoice_number || null,
-            paymentDate: row.payment_date,
-            amount: Number(row.amount || 0),
-            feeAmount: Number(row.fee_amount || 0),
-            netAmount: Number(row.amount || 0) - Number(row.fee_amount || 0),
-            currencyCode: row.currency_code || 'INR',
-            paymentMethod: row.payment_method || 'bank_transfer',
-            referenceNumber: row.reference_number || '',
-            notes: row.notes || '',
-            status: row.status || 'completed',
-            recordedBy: row.recorded_by || null,
-            createdAt: row.created_at
-          }));
-          this.cachedPayments = mapped;
-          this.saveLocalCache();
-          return mapped;
-        }
-      } catch (e) {
-        console.warn('[FinanceService] Supabase payments query fallback:', e);
+      if (error) {
+        throw new Error(`Failed to load payments: ${error.message}`);
       }
+
+      const mapped: PaymentRecord[] = (data || []).map((row: any) => ({
+        id: row.id,
+        invoiceId: row.invoice_id || null,
+        clientId: row.client_id,
+        clientName: row.clients?.name || 'Unknown Client',
+        organizationName: row.clients?.organization_name || '',
+        invoiceNumber: row.invoices?.invoice_number || null,
+        paymentDate: row.payment_date,
+        amount: Number(row.amount || 0),
+        feeAmount: Number(row.fee_amount || 0),
+        netAmount: Number(row.amount || 0) - Number(row.fee_amount || 0),
+        currencyCode: row.currency_code || 'INR',
+        paymentMethod: row.payment_method || 'bank_transfer',
+        referenceNumber: row.reference_number || '',
+        notes: row.notes || '',
+        status: row.status || 'completed',
+        recordedBy: row.recorded_by || null,
+        createdAt: row.created_at
+      }));
+      this.cachedPayments = mapped;
+      return mapped;
     }
     return [...this.cachedPayments];
   }
@@ -642,36 +667,33 @@ class FinanceService {
 
   public async getExpenses(): Promise<ExpenseRecord[]> {
     if (supabase) {
-      try {
-        const { data, error } = await supabase
-          .from('expenses')
-          .select('*')
-          .order('expense_date', { ascending: false });
+      const { data, error } = await supabase
+        .from('expenses')
+        .select('*')
+        .order('expense_date', { ascending: false });
 
-        if (!error && data) {
-          const mapped: ExpenseRecord[] = data.map((row: any) => ({
-            id: row.id,
-            title: row.title,
-            category: row.category,
-            amount: Number(row.amount || 0),
-            currencyCode: row.currency_code || 'INR',
-            expenseDate: row.expense_date,
-            vendor: row.vendor || '',
-            paymentMethod: row.payment_method || 'bank_transfer',
-            receiptUrl: row.receipt_url || '',
-            isRecurring: Boolean(row.is_recurring),
-            recurringPeriod: row.recurring_period || undefined,
-            notes: row.notes || '',
-            createdAt: row.created_at,
-            updatedAt: row.updated_at
-          }));
-          this.cachedExpenses = mapped;
-          this.saveLocalCache();
-          return mapped;
-        }
-      } catch (e) {
-        console.warn('[FinanceService] Supabase expenses query fallback:', e);
+      if (error) {
+        throw new Error(`Failed to load expenses: ${error.message}`);
       }
+
+      const mapped: ExpenseRecord[] = (data || []).map((row: any) => ({
+        id: row.id,
+        title: row.title,
+        category: row.category,
+        amount: Number(row.amount || 0),
+        currencyCode: row.currency_code || 'INR',
+        expenseDate: row.expense_date,
+        vendor: row.vendor || '',
+        paymentMethod: row.payment_method || 'bank_transfer',
+        receiptUrl: row.receipt_url || '',
+        isRecurring: Boolean(row.is_recurring),
+        recurringPeriod: row.recurring_period || undefined,
+        notes: row.notes || '',
+        createdAt: row.created_at,
+        updatedAt: row.updated_at
+      }));
+      this.cachedExpenses = mapped;
+      return mapped;
     }
     return [...this.cachedExpenses];
   }

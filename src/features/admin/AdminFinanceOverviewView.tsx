@@ -24,36 +24,63 @@ import {
 } from '../../types/finance';
 import { FinanceReportingService } from '../../services/financeReportingService';
 import { AdminReportingDateSelector } from './AdminReportingDateSelector';
+import { AdminViewTab } from './AdminSidebar';
 import { ReportingDateContext, ReportingDateService, ReportingPeriod } from '../../services/reportingDateService';
 import { FinanceExportService } from '../../services/financeExportService';
+
+export type FinanceOverviewErrorKey = 'clients' | 'invoices' | 'payments' | 'expenses' | 'contracts';
 
 interface AdminFinanceOverviewViewProps {
   invoices: InvoiceRecord[];
   payments: PaymentRecord[];
   expenses: ExpenseRecord[];
   clients: ClientRecord[];
+  isLoading?: boolean;
+  loadErrors?: Partial<Record<FinanceOverviewErrorKey, string>>;
   onRefresh: () => void;
   onOpenCreateInvoice: () => void;
   onOpenRecordPayment: () => void;
   onOpenLogExpense: () => void;
-  onSelectTab: (tab: any) => void;
+  onSelectTab: (tab: AdminViewTab) => void;
 }
+
+const OVERVIEW_DATASET_LABELS: Record<'clients' | 'invoices' | 'payments' | 'expenses', string> = {
+  clients: 'Clients',
+  invoices: 'Invoices',
+  payments: 'Payments',
+  expenses: 'Expenses'
+};
 
 export const AdminFinanceOverviewView: React.FC<AdminFinanceOverviewViewProps> = ({
   invoices,
   payments,
   expenses,
-  clients,
+  clients: _clients,
+  isLoading = false,
+  loadErrors,
   onRefresh,
   onOpenCreateInvoice,
   onOpenRecordPayment,
   onOpenLogExpense,
   onSelectTab
 }) => {
+  const safeLoadErrors: Partial<Record<FinanceOverviewErrorKey, string>> = loadErrors ?? {};
   const [period, setPeriod] = useState<ReportingPeriod>('30days');
   const [customStart, setCustomStart] = useState<string>('');
   const [customEnd, setCustomEnd] = useState<string>('');
   const [selectedCurrency, setSelectedCurrency] = useState<CurrencyCode>('ALL');
+
+  const handleChangePeriod = (
+    newPeriod: ReportingPeriod,
+    newCustomStart?: string,
+    newCustomEnd?: string
+  ) => {
+    setPeriod(newPeriod);
+    if (newPeriod === 'custom') {
+      if (newCustomStart !== undefined) setCustomStart(newCustomStart);
+      if (newCustomEnd !== undefined) setCustomEnd(newCustomEnd);
+    }
+  };
 
   const dateContext: ReportingDateContext = useMemo(() => {
     return ReportingDateService.resolveDateContext(period, customStart, customEnd);
@@ -63,18 +90,35 @@ export const AdminFinanceOverviewView: React.FC<AdminFinanceOverviewViewProps> =
     return FinanceReportingService.generateReport(invoices, payments, expenses, dateContext);
   }, [invoices, payments, expenses, dateContext]);
 
+  const effectiveSelectedCurrency: CurrencyCode =
+    selectedCurrency !== 'ALL' && report.byCurrency[selectedCurrency] ? selectedCurrency : 'ALL';
+
   // Filter or active currency list
   const activeCurrencies = useMemo(() => {
-    if (selectedCurrency !== 'ALL' && report.byCurrency[selectedCurrency]) {
-      return [selectedCurrency];
+    if (effectiveSelectedCurrency !== 'ALL') {
+      return [effectiveSelectedCurrency];
     }
     return report.currencies;
-  }, [selectedCurrency, report]);
+  }, [effectiveSelectedCurrency, report]);
+
+  const overviewErrorEntries = useMemo(() => {
+    const keys: ('clients' | 'invoices' | 'payments' | 'expenses')[] = [
+      'clients',
+      'invoices',
+      'payments',
+      'expenses'
+    ];
+    return keys
+      .filter(k => Boolean(safeLoadErrors[k]))
+      .map(k => ({
+        key: k,
+        label: OVERVIEW_DATASET_LABELS[k],
+        message: safeLoadErrors[k] as string
+      }));
+  }, [safeLoadErrors]);
 
   const handleExportSummary = () => {
-    FinanceExportService.exportInvoices(invoices, dateContext.currentRange.label);
-    FinanceExportService.exportPayments(payments, dateContext.currentRange.label);
-    FinanceExportService.exportExpenses(expenses, dateContext.currentRange.label);
+    FinanceExportService.exportOverviewSummary(report, activeCurrencies);
   };
 
   return (
@@ -132,11 +176,14 @@ export const AdminFinanceOverviewView: React.FC<AdminFinanceOverviewViewProps> =
             </button>
 
             <button
+              type="button"
               onClick={onRefresh}
+              disabled={isLoading}
               title="Refresh ledger"
-              className="p-2 border border-slate-200 hover:bg-slate-50 rounded-lg text-slate-600 transition-colors min-h-[38px] min-w-[38px] flex items-center justify-center"
+              aria-label="Refresh financial ledger"
+              className="p-2 border border-slate-200 hover:bg-slate-50 rounded-lg text-slate-600 transition-colors min-h-[38px] min-w-[38px] flex items-center justify-center disabled:opacity-60"
             >
-              <RefreshCw className="w-4 h-4" />
+              <RefreshCw className={`w-4 h-4 ${isLoading ? 'animate-spin text-amber-600' : ''}`} />
             </button>
           </div>
         </div>
@@ -144,12 +191,8 @@ export const AdminFinanceOverviewView: React.FC<AdminFinanceOverviewViewProps> =
         {/* Date Filter Component */}
         <div className="pt-2 border-t border-slate-100 flex flex-col sm:flex-row sm:items-center justify-between gap-3">
           <AdminReportingDateSelector
-            period={period}
-            onChangePeriod={setPeriod}
-            customStartDate={customStart}
-            customEndDate={customEnd}
-            onChangeCustomStartDate={setCustomStart}
-            onChangeCustomEndDate={setCustomEnd}
+            dateContext={dateContext}
+            onChangePeriod={handleChangePeriod}
           />
 
           {/* Currency Filter / Selector */}
@@ -157,7 +200,7 @@ export const AdminFinanceOverviewView: React.FC<AdminFinanceOverviewViewProps> =
             <div className="flex items-center space-x-2 shrink-0">
               <span className="text-xs text-slate-500 font-medium">Currency View:</span>
               <select
-                value={selectedCurrency}
+                value={effectiveSelectedCurrency}
                 onChange={(e) => setSelectedCurrency(e.target.value)}
                 className="bg-slate-50 border border-slate-200 text-slate-800 text-xs rounded-lg px-2.5 py-1.5 font-mono font-medium focus:ring-1 focus:ring-slate-900 focus:outline-hidden"
               >
@@ -170,6 +213,56 @@ export const AdminFinanceOverviewView: React.FC<AdminFinanceOverviewViewProps> =
           )}
         </div>
       </div>
+
+      {/* Loading Indicator */}
+      {isLoading && (
+        <div
+          role="status"
+          className="px-4 py-3 bg-slate-50 border border-slate-200 rounded-xl flex items-center justify-between text-xs text-slate-600"
+        >
+          <div className="flex items-center space-x-2">
+            <RefreshCw className="w-3.5 h-3.5 animate-spin text-amber-600 shrink-0" />
+            <span>Syncing live financial records from Supabase…</span>
+          </div>
+        </div>
+      )}
+
+      {/* Per-Dataset Error Banner (Surfaces independent query failures without blocking other sections) */}
+      {overviewErrorEntries.length > 0 && (
+        <div
+          role="alert"
+          className="p-3.5 bg-rose-50 border border-rose-200 rounded-xl flex flex-col sm:flex-row sm:items-start justify-between gap-3 text-xs text-rose-900"
+        >
+          <div className="flex items-start space-x-2.5">
+            <AlertCircle className="w-4 h-4 text-rose-600 shrink-0 mt-0.5" />
+            <div className="space-y-1">
+              <p className="font-semibold text-rose-950">
+                Some financial datasets could not be loaded from the database
+              </p>
+              <ul className="list-disc pl-4 space-y-0.5 text-[11px] text-rose-800">
+                {overviewErrorEntries.map(entry => (
+                  <li key={entry.key}>
+                    <strong>{entry.label}:</strong> {entry.message}
+                  </li>
+                ))}
+              </ul>
+              {safeLoadErrors.payments && (
+                <p className="text-[11px] text-rose-700">
+                  Realized income and payment-derived invoice outstanding balances may be incomplete until Payments reload.
+                </p>
+              )}
+            </div>
+          </div>
+          <button
+            type="button"
+            onClick={onRefresh}
+            disabled={isLoading}
+            className="px-3 py-1.5 bg-rose-600 hover:bg-rose-700 text-white rounded-lg text-xs font-semibold shrink-0 self-start transition-colors disabled:opacity-60"
+          >
+            Retry
+          </button>
+        </div>
+      )}
 
       {/* Multi-Currency & Accounting Guardrail Notice */}
       <div className="p-3.5 bg-amber-500/10 border border-amber-300/60 rounded-xl flex items-start space-x-3 text-xs text-amber-900">
@@ -198,10 +291,14 @@ export const AdminFinanceOverviewView: React.FC<AdminFinanceOverviewViewProps> =
           overdueReceivables: 0,
           invoicesCount: 0,
           paymentsCount: 0,
-          expensesCount: 0
+          expensesCount: 0,
+          totalProcessingFees: 0
         };
 
         const isPositiveCashFlow = data.netCashFlow >= 0;
+        const nonZeroExpenseCategories = Object.entries(
+          (report.expensesByCategory[curr] || {}) as Record<string, number>
+        ).filter(([, amt]) => Number(amt) > 0);
 
         return (
           <div key={curr} className="bg-white rounded-xl border border-slate-200 shadow-2xs overflow-hidden">
@@ -230,6 +327,11 @@ export const AdminFinanceOverviewView: React.FC<AdminFinanceOverviewViewProps> =
                   {data.symbol}{data.realizedIncome.toLocaleString(undefined, { minimumFractionDigits: 2 })}
                 </div>
                 <div className="text-[11px] text-emerald-700/80">Cash collected in bank</div>
+                {data.totalProcessingFees > 0 && (
+                  <div className="text-[10px] text-emerald-800/75 font-mono">
+                    Gateway fees: {data.symbol}{data.totalProcessingFees.toLocaleString(undefined, { minimumFractionDigits: 2 })}
+                  </div>
+                )}
               </div>
 
               {/* 2. Billed Amount */}
@@ -306,10 +408,13 @@ export const AdminFinanceOverviewView: React.FC<AdminFinanceOverviewViewProps> =
               <h3 className="text-xs font-bold text-slate-700 uppercase tracking-wider mb-2.5">
                 Expense Distribution ({curr})
               </h3>
-              <div className="grid grid-cols-2 sm:grid-cols-3 md:grid-cols-5 gap-2">
-                {Object.entries(report.expensesByCategory[curr] || {}).map(([cat, amt]) => {
-                  if (amt === 0) return null;
-                  return (
+              {nonZeroExpenseCategories.length === 0 ? (
+                <p className="text-xs text-slate-400">
+                  No expenses recorded in {curr} for this period.
+                </p>
+              ) : (
+                <div className="grid grid-cols-2 sm:grid-cols-3 md:grid-cols-5 gap-2">
+                  {nonZeroExpenseCategories.map(([cat, amt]) => (
                     <div key={cat} className="p-2.5 rounded-lg bg-slate-50 border border-slate-100 text-xs">
                       <div className="text-[10px] text-slate-500 truncate capitalize">
                         {cat.replace('_', ' ')}
@@ -318,9 +423,9 @@ export const AdminFinanceOverviewView: React.FC<AdminFinanceOverviewViewProps> =
                         {data.symbol}{Number(amt).toLocaleString(undefined, { minimumFractionDigits: 2 })}
                       </div>
                     </div>
-                  );
-                })}
-              </div>
+                  ))}
+                </div>
+              )}
             </div>
           </div>
         );
@@ -363,7 +468,7 @@ export const AdminFinanceOverviewView: React.FC<AdminFinanceOverviewViewProps> =
         </div>
 
         <div
-          onClick={() => onSelectTab('finance_expenses')}
+          onClick={() => onSelectTab('report_expenses')}
           className="p-4 bg-white rounded-xl border border-slate-200 hover:border-slate-300 shadow-2xs cursor-pointer transition-all hover:shadow-xs group"
         >
           <div className="flex items-center justify-between">

@@ -10,7 +10,16 @@
  * - Quotes escaping, null safety, and human-readable formats
  */
 
-import { InvoiceRecord, PaymentRecord, ExpenseRecord, PAYMENT_METHOD_LABELS, EXPENSE_CATEGORY_LABELS } from '../types/finance';
+import {
+  InvoiceRecord,
+  PaymentRecord,
+  ExpenseRecord,
+  FinancialReportingSummary,
+  CurrencyCode,
+  PAYMENT_METHOD_LABELS,
+  EXPENSE_CATEGORY_LABELS
+} from '../types/finance';
+import { ReportingDateService } from './reportingDateService';
 
 function escapeCsvField(value: any): string {
   if (value === null || value === undefined) return '';
@@ -153,7 +162,56 @@ export class FinanceExportService {
     ]);
 
     const csv = [headers.map(escapeCsvField).join(','), ...rows.map(r => r.map(escapeCsvField).join(','))].join('\r\n');
-    const safeDate = new Date().toISOString().split('T')[0];
+    const safeDate = ReportingDateService.toLocalDateString(new Date());
     triggerDownload(csv, `mk_digitalverse_expenses_${safeDate}.csv`);
+  }
+
+  /**
+   * Export Finance Overview Summary to a single currency-separated CSV
+   * respecting the active reporting period and selected currency view.
+   */
+  public static exportOverviewSummary(
+    report: FinancialReportingSummary,
+    currencies: CurrencyCode[]
+  ) {
+    const headers = [
+      'Reporting Period',
+      'Currency',
+      'Realized Income',
+      'Processing Fees',
+      'Billed (Active Invoices)',
+      'Cash Expenses',
+      'Net Cash Flow',
+      'Outstanding Receivables',
+      'Overdue Receivables',
+      'Completed Payments Count',
+      'Active Invoices Count',
+      'Expenses Count'
+    ];
+
+    const rows = currencies.map(curr => {
+      const s = report.byCurrency[curr];
+      return [
+        report.periodLabel,
+        curr,
+        (s?.realizedIncome ?? 0).toFixed(2),
+        (s?.totalProcessingFees ?? 0).toFixed(2),
+        (s?.billedAmount ?? 0).toFixed(2),
+        (s?.totalExpenses ?? 0).toFixed(2),
+        (s?.netCashFlow ?? 0).toFixed(2),
+        (s?.outstandingReceivables ?? 0).toFixed(2),
+        (s?.overdueReceivables ?? 0).toFixed(2),
+        s?.paymentsCount ?? 0,
+        s?.invoicesCount ?? 0,
+        s?.expensesCount ?? 0
+      ];
+    });
+
+    const csv = [
+      headers.map(escapeCsvField).join(','),
+      ...rows.map(r => r.map(escapeCsvField).join(','))
+    ].join('\r\n');
+    const safeDate = ReportingDateService.toLocalDateString(new Date());
+    triggerDownload(csv, `mk_digitalverse_finance_overview_${safeDate}.csv`);
   }
 }

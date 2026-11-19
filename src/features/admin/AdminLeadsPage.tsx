@@ -117,22 +117,70 @@ export const AdminLeadsPage: React.FC<AdminLeadsPageProps> = ({ onReturnHome }) 
   const [activePaymentInvoice, setActivePaymentInvoice] = useState<InvoiceRecord | null>(null);
   const [activeClientForAction, setActiveClientForAction] = useState<ClientRecord | null>(null);
 
+  const [isLoadingFinance, setIsLoadingFinance] = useState<boolean>(false);
+  const [financeErrors, setFinanceErrors] = useState<
+    Partial<Record<'clients' | 'invoices' | 'payments' | 'expenses' | 'contracts', string>>
+  >({});
+
   const loadFinanceData = async () => {
+    setIsLoadingFinance(true);
+    const nextErrors: Partial<Record<'clients' | 'invoices' | 'payments' | 'expenses' | 'contracts', string>> = {};
+
     try {
-      const [fetchedClients, fetchedInvoices, fetchedPayments, fetchedExpenses, fetchedContracts] = await Promise.all([
-        financeService.getClients(),
-        financeService.getInvoices(),
-        financeService.getPayments(),
-        financeService.getExpenses(),
-        contractService.getContracts()
-      ]);
-      setClients(fetchedClients);
-      setInvoices(fetchedInvoices);
-      setPayments(fetchedPayments);
-      setExpenses(fetchedExpenses);
-      setContracts(fetchedContracts);
-    } catch (err) {
-      console.warn('[AdminLeadsPage] Failed to fetch finance and contract data:', err);
+      const [clientsRes, rawInvoicesRes, paymentsRes, expensesRes, contractsRes] =
+        await Promise.allSettled([
+          financeService.getClients(),
+          financeService.getRawInvoices(),
+          financeService.getPayments(),
+          financeService.getExpenses(),
+          contractService.getContracts()
+        ]);
+
+      const resolvedClients = clientsRes.status === 'fulfilled' ? clientsRes.value : [];
+      if (clientsRes.status === 'fulfilled') {
+        setClients(clientsRes.value);
+      } else {
+        nextErrors.clients = clientsRes.reason?.message || 'Unable to load clients.';
+        console.warn('[AdminLeadsPage] Failed to fetch clients:', clientsRes.reason);
+      }
+
+      const resolvedPayments = paymentsRes.status === 'fulfilled' ? paymentsRes.value : [];
+      if (paymentsRes.status === 'fulfilled') {
+        setPayments(paymentsRes.value);
+      } else {
+        nextErrors.payments = paymentsRes.reason?.message || 'Unable to load payments.';
+        console.warn('[AdminLeadsPage] Failed to fetch payments:', paymentsRes.reason);
+      }
+
+      if (rawInvoicesRes.status === 'fulfilled') {
+        const reconciledInvoices = financeService.reconcileInvoices(
+          rawInvoicesRes.value,
+          resolvedClients,
+          resolvedPayments
+        );
+        setInvoices(reconciledInvoices);
+      } else {
+        nextErrors.invoices = rawInvoicesRes.reason?.message || 'Unable to load invoices.';
+        console.warn('[AdminLeadsPage] Failed to fetch invoices:', rawInvoicesRes.reason);
+      }
+
+      if (expensesRes.status === 'fulfilled') {
+        setExpenses(expensesRes.value);
+      } else {
+        nextErrors.expenses = expensesRes.reason?.message || 'Unable to load expenses.';
+        console.warn('[AdminLeadsPage] Failed to fetch expenses:', expensesRes.reason);
+      }
+
+      if (contractsRes.status === 'fulfilled') {
+        setContracts(contractsRes.value);
+      } else {
+        nextErrors.contracts = contractsRes.reason?.message || 'Unable to load contracts.';
+        console.warn('[AdminLeadsPage] Failed to fetch contracts:', contractsRes.reason);
+      }
+
+      setFinanceErrors(nextErrors);
+    } finally {
+      setIsLoadingFinance(false);
     }
   };
 
@@ -806,6 +854,8 @@ export const AdminLeadsPage: React.FC<AdminLeadsPageProps> = ({ onReturnHome }) 
                 payments={payments}
                 expenses={expenses}
                 clients={clients}
+                isLoading={isLoadingFinance}
+                loadErrors={financeErrors}
                 onRefresh={loadFinanceData}
                 onOpenCreateInvoice={() => {
                   setActiveClientForAction(null);

@@ -14,7 +14,10 @@
  */
 
 import { InvoiceRecord, PaymentRecord, ExpenseRecord, FinancialReportingSummary, CurrencyFinancialSummary, ExpenseCategory, CurrencyCode, SUPPORTED_CURRENCIES } from '../types/finance';
-import { ReportingDateContext } from './reportingDateService';
+import { ReportingDateContext, ReportingDateService } from './reportingDateService';
+
+const isActiveCommercialInvoice = (invoice: InvoiceRecord): boolean =>
+  invoice.status !== 'cancelled' && invoice.status !== 'draft';
 
 export class FinanceReportingService {
   /**
@@ -27,30 +30,34 @@ export class FinanceReportingService {
     dateContext: ReportingDateContext
   ): FinancialReportingSummary {
     const { currentRange } = dateContext;
-    const startStr = currentRange.start.toISOString().split('T')[0];
-    const endStr = currentRange.end.toISOString().split('T')[0];
-    const todayStr = new Date().toISOString().split('T')[0];
+    const startStr = ReportingDateService.toLocalDateString(currentRange.start);
+    const endStr = ReportingDateService.toLocalDateString(currentRange.end);
+    const todayStr = ReportingDateService.toLocalDateString(new Date());
 
-    // Filter by financial event dates
-    const periodInvoices = invoices.filter(i => {
+    // Only active commercial invoices (exclude draft and cancelled)
+    const activeInvoices = invoices.filter(isActiveCommercialInvoice);
+
+    // Filter by financial event dates (YYYY-MM-DD local calendar boundaries)
+    const periodInvoices = activeInvoices.filter(i => {
       if (dateContext.period === 'all') return true;
-      return i.issueDate >= startStr && i.issueDate <= endStr;
+      return Boolean(i.issueDate) && i.issueDate >= startStr && i.issueDate <= endStr;
     });
 
     const periodPayments = payments.filter(p => {
-      if (dateContext.period === 'all') return p.status === 'completed';
-      return p.paymentDate >= startStr && p.paymentDate <= endStr && p.status === 'completed';
+      if (p.status !== 'completed') return false;
+      if (dateContext.period === 'all') return true;
+      return Boolean(p.paymentDate) && p.paymentDate >= startStr && p.paymentDate <= endStr;
     });
 
     const periodExpenses = expenses.filter(e => {
       if (dateContext.period === 'all') return true;
-      return e.expenseDate >= startStr && e.expenseDate <= endStr;
+      return Boolean(e.expenseDate) && e.expenseDate >= startStr && e.expenseDate <= endStr;
     });
 
-    // Detect all active currencies present in transactions
+    // Detect all active currencies present in valid commercial/cash transactions
     const currencySet = new Set<CurrencyCode>();
-    invoices.forEach(i => currencySet.add(i.currencyCode || 'INR'));
-    payments.forEach(p => currencySet.add(p.currencyCode || 'INR'));
+    activeInvoices.forEach(i => currencySet.add(i.currencyCode || 'INR'));
+    payments.filter(p => p.status === 'completed').forEach(p => currencySet.add(p.currencyCode || 'INR'));
     expenses.forEach(e => currencySet.add(e.currencyCode || 'INR'));
 
     // Default to at least INR if empty
@@ -68,25 +75,23 @@ export class FinanceReportingService {
       const currExpenses = periodExpenses.filter(e => (e.currencyCode || 'INR') === curr);
 
       const realizedIncome = currPayments.reduce((acc, p) => acc + p.amount, 0);
-      const billedAmount = currInvoices
-        .filter(i => i.status !== 'cancelled')
-        .reduce((acc, i) => acc + i.amountTotal, 0);
+      const billedAmount = currInvoices.reduce((acc, i) => acc + i.amountTotal, 0);
 
       const totalExpenses = currExpenses.reduce((acc, e) => acc + e.amount, 0);
       const netCashFlow = Math.round((realizedIncome - totalExpenses) * 100) / 100;
 
-      // Outstanding receivables (across all uncancelled invoices for this currency)
-      const allActiveInvoicesForCurr = invoices.filter(
-        i => (i.currencyCode || 'INR') === curr && i.status !== 'cancelled'
+      // Outstanding receivables (across all active non-draft, non-cancelled invoices for this currency)
+      const allActiveInvoicesForCurr = activeInvoices.filter(
+        i => (i.currencyCode || 'INR') === curr
       );
       const outstandingReceivables = allActiveInvoicesForCurr.reduce(
         (acc, i) => acc + i.amountOutstanding,
         0
       );
 
-      // Overdue receivables
+      // Overdue receivables (active non-draft, non-cancelled invoices past due date with remaining balance)
       const overdueReceivables = allActiveInvoicesForCurr
-        .filter(i => i.dueDate < todayStr && i.amountOutstanding > 0.01)
+        .filter(i => Boolean(i.dueDate) && i.dueDate < todayStr && i.amountOutstanding > 0.01)
         .reduce((acc, i) => acc + i.amountOutstanding, 0);
 
       const totalProcessingFees = currPayments.reduce((acc, p) => acc + (p.feeAmount || 0), 0);
@@ -106,7 +111,7 @@ export class FinanceReportingService {
         totalProcessingFees: Math.round(totalProcessingFees * 100) / 100
       };
 
-      // Categorize expenses
+      // Categorize expenses independently per currency
       const catMap: Record<ExpenseCategory, number> = {
         advertising: 0,
         software_tools: 0,
@@ -125,8 +130,8 @@ export class FinanceReportingService {
       expensesByCategory[curr] = catMap;
     });
 
-    const overdueCount = invoices.filter(
-      i => i.dueDate < todayStr && i.amountOutstanding > 0.01 && i.status !== 'cancelled'
+    const overdueCount = activeInvoices.filter(
+      i => Boolean(i.dueDate) && i.dueDate < todayStr && i.amountOutstanding > 0.01
     ).length;
 
     return {

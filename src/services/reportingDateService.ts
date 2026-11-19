@@ -172,18 +172,17 @@ export class ReportingDateService {
       }
 
       case 'custom': {
-        if (customStart && customEnd) {
-          currentStart = new Date(customStart);
-          currentStart.setHours(0, 0, 0, 0);
-          currentEnd = new Date(customEnd);
+        if (customStart && customEnd && customStart <= customEnd) {
+          currentStart = this.parseLocalDateString(customStart);
+          currentEnd = this.parseLocalDateString(customEnd);
           currentEnd.setHours(23, 59, 59, 999);
         } else {
-          // Fallback to last 30 days if not set
+          // Fallback to last 30 days if unset or invalid
           currentStart = new Date(now.getTime() - 30 * 24 * 60 * 60 * 1000);
           currentStart.setHours(0, 0, 0, 0);
         }
 
-        const durationMs = currentEnd.getTime() - currentStart.getTime();
+        const durationMs = Math.max(0, currentEnd.getTime() - currentStart.getTime());
         currentLabel = `${this.formatDate(currentStart)} – ${this.formatDate(currentEnd)}`;
 
         prevEnd = new Date(currentStart.getTime() - 1);
@@ -276,6 +275,29 @@ export class ReportingDateService {
       formattedText: `${sign}${rounded}%`,
       hasValidComparison: true
     };
+  }
+
+  /**
+   * Formats a local Date into a calendar YYYY-MM-DD string without UTC day shifts.
+   */
+  public static toLocalDateString(d: Date): string {
+    const year = d.getFullYear();
+    const month = String(d.getMonth() + 1).padStart(2, '0');
+    const day = String(d.getDate()).padStart(2, '0');
+    return `${year}-${month}-${day}`;
+  }
+
+  /**
+   * Parses a YYYY-MM-DD calendar string as local midnight without UTC day shifts.
+   */
+  public static parseLocalDateString(ymd: string): Date {
+    const parts = ymd.split('-').map(Number);
+    if (parts.length === 3 && !parts.some(isNaN)) {
+      return new Date(parts[0], parts[1] - 1, parts[2], 0, 0, 0, 0);
+    }
+    const parsed = new Date(ymd);
+    parsed.setHours(0, 0, 0, 0);
+    return parsed;
   }
 
   /**

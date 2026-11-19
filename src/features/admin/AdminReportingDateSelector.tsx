@@ -1,6 +1,6 @@
-import React, { useState } from 'react';
+import React, { useState, useEffect } from 'react';
 import { Calendar, ChevronDown, Check, ArrowRight } from 'lucide-react';
-import { ReportingPeriod, ReportingDateContext } from '../../services/reportingDateService';
+import { ReportingPeriod, ReportingDateContext, ReportingDateService } from '../../services/reportingDateService';
 
 interface AdminReportingDateSelectorProps {
   dateContext: ReportingDateContext;
@@ -26,20 +26,38 @@ export const AdminReportingDateSelector: React.FC<AdminReportingDateSelectorProp
   onChangePeriod
 }) => {
   const [isOpen, setIsOpen] = useState(false);
-  const [showCustomPicker, setShowCustomPicker] = useState(dateContext.period === 'custom');
+  const [showCustomPicker, setShowCustomPicker] = useState(dateContext?.period === 'custom');
   const [customStart, setCustomStart] = useState(
-    dateContext.customStartDate || new Date(Date.now() - 30 * 24 * 60 * 60 * 1000).toISOString().split('T')[0]
+    dateContext?.customStartDate ||
+      ReportingDateService.toLocalDateString(new Date(Date.now() - 30 * 24 * 60 * 60 * 1000))
   );
   const [customEnd, setCustomEnd] = useState(
-    dateContext.customEndDate || new Date().toISOString().split('T')[0]
+    dateContext?.customEndDate || ReportingDateService.toLocalDateString(new Date())
   );
+  const [validationError, setValidationError] = useState<string | null>(null);
 
-  const activeOption = PERIOD_OPTIONS.find(p => p.id === dateContext.period) || PERIOD_OPTIONS[5]; // Default This Month
+  useEffect(() => {
+    if (dateContext?.customStartDate) {
+      setCustomStart(dateContext.customStartDate);
+    }
+    if (dateContext?.customEndDate) {
+      setCustomEnd(dateContext.customEndDate);
+    }
+  }, [dateContext?.customStartDate, dateContext?.customEndDate]);
+
+  const activeOption = PERIOD_OPTIONS.find(p => p.id === dateContext?.period) || PERIOD_OPTIONS[5]; // Default This Month
 
   const handleSelect = (id: ReportingPeriod) => {
+    setValidationError(null);
     if (id === 'custom') {
       setShowCustomPicker(true);
-      onChangePeriod('custom', customStart, customEnd);
+      if (customStart && customEnd) {
+        if (customStart > customEnd) {
+          setValidationError('Start date cannot be after end date.');
+        } else {
+          onChangePeriod('custom', customStart, customEnd);
+        }
+      }
     } else {
       setShowCustomPicker(false);
       onChangePeriod(id);
@@ -49,10 +67,17 @@ export const AdminReportingDateSelector: React.FC<AdminReportingDateSelectorProp
 
   const handleApplyCustom = (e: React.FormEvent) => {
     e.preventDefault();
-    if (customStart && customEnd) {
-      onChangePeriod('custom', customStart, customEnd);
-      setShowCustomPicker(false);
+    if (!customStart || !customEnd) {
+      setValidationError('Please select both a start date and an end date.');
+      return;
     }
+    if (customStart > customEnd) {
+      setValidationError('Start date cannot be after end date.');
+      return;
+    }
+    setValidationError(null);
+    onChangePeriod('custom', customStart, customEnd);
+    setShowCustomPicker(false);
   };
 
   return (
@@ -127,29 +152,44 @@ export const AdminReportingDateSelector: React.FC<AdminReportingDateSelectorProp
 
       {/* Custom Date Range Inline Controls (When active) */}
       {showCustomPicker && (
-        <form onSubmit={handleApplyCustom} className="flex items-center gap-1.5 bg-slate-100 p-1 rounded-lg border border-slate-200 text-xs">
-          <input
-            type="date"
-            value={customStart}
-            onChange={(e) => setCustomStart(e.target.value)}
-            className="px-2 py-1 bg-white border border-slate-300 rounded text-slate-800 text-xs focus:outline-none focus:ring-1 focus:ring-amber-500"
-            required
-          />
-          <ArrowRight className="w-3 h-3 text-slate-400 shrink-0" />
-          <input
-            type="date"
-            value={customEnd}
-            onChange={(e) => setCustomEnd(e.target.value)}
-            className="px-2 py-1 bg-white border border-slate-300 rounded text-slate-800 text-xs focus:outline-none focus:ring-1 focus:ring-amber-500"
-            required
-          />
-          <button
-            type="submit"
-            className="px-2.5 py-1 bg-slate-900 hover:bg-slate-800 text-white font-medium rounded text-xs transition-colors shrink-0"
-          >
-            Apply
-          </button>
-        </form>
+        <div className="flex flex-col gap-1">
+          <form onSubmit={handleApplyCustom} className="flex items-center gap-1.5 bg-slate-100 p-1 rounded-lg border border-slate-200 text-xs">
+            <input
+              type="date"
+              value={customStart}
+              onChange={(e) => {
+                setCustomStart(e.target.value);
+                if (validationError) setValidationError(null);
+              }}
+              aria-label="Custom start date"
+              className="px-2 py-1 bg-white border border-slate-300 rounded text-slate-800 text-xs focus:outline-none focus:ring-1 focus:ring-amber-500"
+              required
+            />
+            <ArrowRight className="w-3 h-3 text-slate-400 shrink-0" />
+            <input
+              type="date"
+              value={customEnd}
+              onChange={(e) => {
+                setCustomEnd(e.target.value);
+                if (validationError) setValidationError(null);
+              }}
+              aria-label="Custom end date"
+              className="px-2 py-1 bg-white border border-slate-300 rounded text-slate-800 text-xs focus:outline-none focus:ring-1 focus:ring-amber-500"
+              required
+            />
+            <button
+              type="submit"
+              className="px-2.5 py-1 bg-slate-900 hover:bg-slate-800 text-white font-medium rounded text-xs transition-colors shrink-0"
+            >
+              Apply
+            </button>
+          </form>
+          {validationError && (
+            <p role="alert" className="text-[11px] font-medium text-rose-600 px-1">
+              {validationError}
+            </p>
+          )}
+        </div>
       )}
 
       {/* Comparison badge/indicator (Clean metadata, zero-pill) */}
