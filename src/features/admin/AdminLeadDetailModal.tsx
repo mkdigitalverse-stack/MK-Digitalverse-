@@ -197,8 +197,6 @@ export const AdminLeadDetailModal: React.FC<AdminLeadDetailModalProps> = ({
         intentLevel,
         growthStage,
         assignedTo,
-        nextFollowUpAt,
-        lastContactedAt,
         internalNotes,
         fitScore,
         estimatedOpportunityValue,
@@ -398,27 +396,19 @@ export const AdminLeadDetailModal: React.FC<AdminLeadDetailModalProps> = ({
   const stageProb = STAGE_PROBABILITIES[opportunityStage] ?? 0.05;
   const weightedValue = Math.round((estimatedOpportunityValue || 0) * stageProb);
 
-  // Follow-up status calculation
+  // Follow-up status calculation (aligned with canonical getFollowUpStatus local calendar date logic)
   const getFollowUpStatusBadge = () => {
-    if (!nextFollowUpAt) {
+    const fStatus = getFollowUpStatus(nextFollowUpAt);
+    if (fStatus === 'UNSCHEDULED') {
       return <span className="text-xs text-slate-400 bg-slate-100 px-2 py-0.5 rounded">No follow-up scheduled</span>;
     }
-
-    try {
-      const target = new Date(nextFollowUpAt).getTime();
-      const now = new Date().getTime();
-      const diffHours = (target - now) / (1000 * 3600);
-
-      if (diffHours < 0) {
-        return <span className="text-xs font-bold text-red-700 bg-red-100 border border-red-200 px-2 py-0.5 rounded">Overdue</span>;
-      }
-      if (diffHours <= 24) {
-        return <span className="text-xs font-bold text-amber-800 bg-amber-100 border border-amber-200 px-2 py-0.5 rounded">Due Today</span>;
-      }
-      return <span className="text-xs font-medium text-emerald-800 bg-emerald-50 border border-emerald-200 px-2 py-0.5 rounded">Upcoming</span>;
-    } catch (_) {
-      return null;
+    if (fStatus === 'OVERDUE') {
+      return <span className="text-xs font-bold text-red-700 bg-red-100 border border-red-200 px-2 py-0.5 rounded">Overdue</span>;
     }
+    if (fStatus === 'DUE_TODAY') {
+      return <span className="text-xs font-bold text-amber-800 bg-amber-100 border border-amber-200 px-2 py-0.5 rounded">Due Today</span>;
+    }
+    return <span className="text-xs font-medium text-emerald-800 bg-emerald-50 border border-emerald-200 px-2 py-0.5 rounded">Upcoming</span>;
   };
 
   return (

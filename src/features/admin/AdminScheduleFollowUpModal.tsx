@@ -73,12 +73,12 @@ export const AdminScheduleFollowUpModal: React.FC<AdminScheduleFollowUpModalProp
     }
 
     setValidationError(null);
-    setAdditionalNote('');
 
     if (mode === 'reschedule' && lead.qualification.nextFollowUpAt) {
-      // Pre-fill existing date and time
+      // Pre-fill existing date, time, and note
       setDate(getDateInputValue(lead.qualification.nextFollowUpAt));
       setTime(getTimeInputValue(lead.qualification.nextFollowUpAt));
+      setAdditionalNote(lead.qualification.nextFollowUpNote || '');
       
       const existingRemark = lead.qualification.nextFollowUpRemark || '';
       if ((FOLLOW_UP_REMARK_OPTIONS as readonly string[]).includes(existingRemark)) {
@@ -102,6 +102,7 @@ export const AdminScheduleFollowUpModal: React.FC<AdminScheduleFollowUpModalProp
       setTime('10:00');
       setRemarkOption('Call Back Requested');
       setCustomRemark('');
+      setAdditionalNote('');
     }
   }, [isOpen, lead, mode]);
 

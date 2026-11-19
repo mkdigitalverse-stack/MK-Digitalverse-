@@ -45,6 +45,7 @@ export const AdminFollowUpsView: React.FC<AdminFollowUpsViewProps> = ({
 }) => {
   const [updatingLeadId, setUpdatingLeadId] = useState<string | null>(null);
   const [actionSuccessMessage, setActionSuccessMessage] = useState<string | null>(null);
+  const [actionErrorMessage, setActionErrorMessage] = useState<string | null>(null);
   const [activeScheduleLead, setActiveScheduleLead] = useState<{ lead: CompleteLeadRecord; mode: 'schedule' | 'reschedule' } | null>(null);
   const [leadToCancel, setLeadToCancel] = useState<CompleteLeadRecord | null>(null);
 
@@ -150,26 +151,33 @@ export const AdminFollowUpsView: React.FC<AdminFollowUpsViewProps> = ({
   ];
 
   const handleMarkContacted = async (lead: CompleteLeadRecord) => {
+    setActionErrorMessage(null);
+    setActionSuccessMessage(null);
     try {
       setUpdatingLeadId(lead.leadId);
       const updated = await adminLeadsService.markContacted(lead.leadId, lead.qualification.assignedTo || 'Growth Partner');
       onLeadUpdated?.(updated);
       setActionSuccessMessage(`Contact logged for ${lead.visitorData.organizationName || lead.visitorData.contactName}`);
       setTimeout(() => setActionSuccessMessage(null), 3000);
-    } catch (err) {
-      console.error('Failed to mark lead contacted:', err);
+    } catch (err: any) {
+      const msg = err?.message || 'Failed to mark lead contacted in database.';
+      console.error('[AdminFollowUpsView] Failed to mark lead contacted:', msg);
+      setActionErrorMessage(msg);
     } finally {
       setUpdatingLeadId(null);
     }
   };
 
   const handleCancelFollowUp = (lead: CompleteLeadRecord) => {
+    setActionErrorMessage(null);
     setLeadToCancel(lead);
   };
 
   const handleConfirmCancel = async () => {
     if (!leadToCancel) return;
     const lead = leadToCancel;
+    setActionErrorMessage(null);
+    setActionSuccessMessage(null);
     try {
       setUpdatingLeadId(lead.leadId);
       const updated = await adminLeadsService.cancelFollowUp(
@@ -178,13 +186,16 @@ export const AdminFollowUpsView: React.FC<AdminFollowUpsViewProps> = ({
         lead.qualification.assignedTo || 'Growth Partner'
       );
       onLeadUpdated?.(updated);
+      setLeadToCancel(null);
       setActionSuccessMessage(`Follow-up cancelled for ${lead.visitorData.organizationName || lead.visitorData.contactName}`);
       setTimeout(() => setActionSuccessMessage(null), 3000);
     } catch (err: any) {
-      console.error('Failed to cancel follow-up:', err);
+      const msg = err?.message || 'Failed to cancel follow-up in database.';
+      console.error('[AdminFollowUpsView] Failed to cancel follow-up:', msg);
+      setLeadToCancel(null);
+      setActionErrorMessage(msg);
     } finally {
       setUpdatingLeadId(null);
-      setLeadToCancel(null);
     }
   };
 
@@ -192,6 +203,7 @@ export const AdminFollowUpsView: React.FC<AdminFollowUpsViewProps> = ({
     leadId: string,
     payload: { date: string; time: string; remark: string; note?: string }
   ) => {
+    setActionErrorMessage(null);
     const lead = leads.find(l => l.leadId === leadId);
     const updated = await adminLeadsService.scheduleFollowUp(leadId, {
       ...payload,
@@ -206,6 +218,7 @@ export const AdminFollowUpsView: React.FC<AdminFollowUpsViewProps> = ({
     leadId: string,
     payload: { previousFollowUpAt?: string; previousRemark?: string; date: string; time: string; remark: string; note?: string }
   ) => {
+    setActionErrorMessage(null);
     const lead = leads.find(l => l.leadId === leadId);
     const updated = await adminLeadsService.rescheduleFollowUp(leadId, {
       ...payload,
@@ -217,6 +230,8 @@ export const AdminFollowUpsView: React.FC<AdminFollowUpsViewProps> = ({
   };
 
   const handleQuickSchedule = async (lead: CompleteLeadRecord, daysFromNow: number) => {
+    setActionErrorMessage(null);
+    setActionSuccessMessage(null);
     try {
       setUpdatingLeadId(lead.leadId);
       const targetDate = new Date();
@@ -233,8 +248,10 @@ export const AdminFollowUpsView: React.FC<AdminFollowUpsViewProps> = ({
       onLeadUpdated?.(updated);
       setActionSuccessMessage(`Follow-up scheduled for ${formatFollowUpDate(isoDate)}`);
       setTimeout(() => setActionSuccessMessage(null), 3000);
-    } catch (err) {
-      console.error('Failed to schedule follow-up:', err);
+    } catch (err: any) {
+      const msg = err?.message || 'Failed to schedule follow-up in database.';
+      console.error('[AdminFollowUpsView] Failed to schedule follow-up:', msg);
+      setActionErrorMessage(msg);
     } finally {
       setUpdatingLeadId(null);
     }
@@ -250,6 +267,23 @@ export const AdminFollowUpsView: React.FC<AdminFollowUpsViewProps> = ({
             <CheckCircle2 className="w-4 h-4 text-emerald-400" />
             <span>{actionSuccessMessage}</span>
           </div>
+        </div>
+      )}
+
+      {/* Action Error Banner */}
+      {actionErrorMessage && (
+        <div className="bg-red-50 text-red-900 px-4 py-3 rounded-lg flex items-center justify-between gap-3 border border-red-300 shadow-sm">
+          <div className="flex items-start space-x-2 text-xs font-semibold">
+            <AlertCircle className="w-4 h-4 text-red-600 shrink-0 mt-0.5" />
+            <span>{actionErrorMessage}</span>
+          </div>
+          <button
+            type="button"
+            onClick={() => setActionErrorMessage(null)}
+            className="text-[11px] font-bold text-red-700 hover:text-red-950 px-2 py-1 rounded hover:bg-red-100 transition-colors shrink-0"
+          >
+            Dismiss
+          </button>
         </div>
       )}
 

@@ -712,10 +712,26 @@ class AdminLeadsService {
       mappedPayload.stage_changed_at = timestamp;
     }
     if (updates.nextFollowUpAt !== undefined) {
-      mappedPayload.next_follow_up_at = updates.nextFollowUpAt ? new Date(updates.nextFollowUpAt).toISOString() : null;
+      if (updates.nextFollowUpAt) {
+        const parsed = new Date(updates.nextFollowUpAt);
+        if (isNaN(parsed.getTime())) {
+          throw new Error(`Invalid follow-up date/time value: "${updates.nextFollowUpAt}".`);
+        }
+        mappedPayload.next_follow_up_at = parsed.toISOString();
+      } else {
+        mappedPayload.next_follow_up_at = null;
+      }
     }
     if (updates.lastContactedAt !== undefined) {
-      mappedPayload.last_contacted_at = updates.lastContactedAt ? new Date(updates.lastContactedAt).toISOString() : null;
+      if (updates.lastContactedAt) {
+        const parsed = new Date(updates.lastContactedAt);
+        if (isNaN(parsed.getTime())) {
+          throw new Error(`Invalid last-contacted timestamp: "${updates.lastContactedAt}".`);
+        }
+        mappedPayload.last_contacted_at = parsed.toISOString();
+      } else {
+        mappedPayload.last_contacted_at = null;
+      }
     }
     if (updates.nextFollowUpRemark !== undefined) {
       mappedPayload.next_follow_up_remark = updates.nextFollowUpRemark ? updates.nextFollowUpRemark.trim() : null;
@@ -743,75 +759,92 @@ class AdminLeadsService {
       mappedPayload.internal_notes = updates.internalNotes;
     }
 
+    const isMissingColumnError = (err: any): boolean => {
+      const code = String(err?.code || '');
+      const msg = String(err?.message || '').toLowerCase();
+      return code === '42703' || code === 'PGRST204' || msg.includes('column') || msg.includes('schema cache');
+    };
+
+    // Never silently strip requested canonical follow-up / contact columns when missing in schema or PostgREST cache
+    const mentionsRequiredFollowUpColumn = (err: any): boolean => {
+      const msg = String(err?.message || '').toLowerCase();
+      return (
+        (updates.nextFollowUpAt !== undefined && msg.includes('next_follow_up_at')) ||
+        (updates.nextFollowUpRemark !== undefined && msg.includes('next_follow_up_remark')) ||
+        (updates.nextFollowUpNote !== undefined && msg.includes('next_follow_up_note')) ||
+        (updates.lastContactedAt !== undefined && msg.includes('last_contacted_at'))
+      );
+    };
+
+    // Only genuinely non-follow-up optional metadata columns may be omitted on targeted retry
+    const OPTIONAL_RETRYABLE_COLUMNS = new Set([
+      'stage_changed_at',
+      'stage_entered_at',
+      'estimated_opportunity_value',
+      'currency',
+      'next_action'
+    ]);
+
+    const extractMissingColumnName = (err: any): string | null => {
+      const msg = String(err?.message || '');
+      const pgrstMatch = msg.match(/Could not find the '([a-z0-9_]+)' column/i);
+      if (pgrstMatch?.[1]) return pgrstMatch[1].toLowerCase();
+      const pgMatch = msg.match(/column "([a-z0-9_]+)" of relation/i);
+      if (pgMatch?.[1]) return pgMatch[1].toLowerCase();
+      return null;
+    };
+
     try {
       // 3. Execute UPDATE against the confirmed lead UUID and verify row update with .select('*').single()
+      // Retries strip ONLY a specifically reported optional metadata column — never next_follow_up_at,
+      // next_follow_up_remark, next_follow_up_note, last_contacted_at, status, assigned_to, lead_priority, or internal_notes.
       let data: any = null;
-      const res = await supabase
-        .from('leads')
-        .update(mappedPayload)
-        .eq('id', leadId)
-        .select('*')
-        .single();
+      const attemptPayload: Record<string, any> = { ...mappedPayload };
+      let attempts = 0;
+      const maxAttempts = OPTIONAL_RETRYABLE_COLUMNS.size + 1;
 
-      if (res.error) {
-        // If optional extended columns are missing on remote table, fallback gracefully
-        if (res.error.message?.includes('column') || (res.error as any).code === '42703') {
-          const fallbackPayload: Record<string, any> = { 
-            updated_at: timestamp,
-            status: targetStage,
-            next_follow_up_at: updates.nextFollowUpAt !== undefined ? (updates.nextFollowUpAt ? new Date(updates.nextFollowUpAt).toISOString() : null) : undefined,
-            next_follow_up_remark: updates.nextFollowUpRemark !== undefined ? (updates.nextFollowUpRemark ? updates.nextFollowUpRemark.trim() : null) : undefined,
-            next_follow_up_note: updates.nextFollowUpNote !== undefined ? (updates.nextFollowUpNote ? updates.nextFollowUpNote.trim() : null) : undefined,
-            last_contacted_at: updates.lastContactedAt !== undefined ? (updates.lastContactedAt ? new Date(updates.lastContactedAt).toISOString() : null) : undefined,
-            next_action: updates.nextAction !== undefined ? (updates.nextAction ? updates.nextAction.trim() : null) : undefined
-          };
-          Object.keys(fallbackPayload).forEach(k => fallbackPayload[k] === undefined && delete fallbackPayload[k]);
+      while (attempts < maxAttempts) {
+        attempts += 1;
+        const res = await supabase
+          .from('leads')
+          .update(attemptPayload)
+          .eq('id', leadId)
+          .select('*')
+          .single();
 
-          const fallbackRes = await supabase
-            .from('leads')
-            .update(fallbackPayload)
-            .eq('id', leadId)
-            .select('*')
-            .single();
+        if (!res.error) {
+          data = res.data;
+          break;
+        }
 
-          if (fallbackRes.error) {
-            if (fallbackRes.error.message?.includes('column') || (fallbackRes.error as any).code === '42703') {
-              const minimalPayload: Record<string, any> = { updated_at: timestamp };
-              if (targetStage !== undefined) minimalPayload.status = targetStage;
-              if (updates.nextFollowUpAt !== undefined) {
-                minimalPayload.next_follow_up_at = updates.nextFollowUpAt ? new Date(updates.nextFollowUpAt).toISOString() : null;
-              }
-              const minimalRes = await supabase
-                .from('leads')
-                .update(minimalPayload)
-                .eq('id', leadId)
-                .select('*')
-                .single();
-              if (minimalRes.error) {
-                console.error('[AdminLeadsService] Error updating lead in Supabase minimal fallback:', minimalRes.error.message);
-                throw new Error(`Database update failed: ${minimalRes.error.message}`);
-              }
-              data = minimalRes.data;
-            } else {
-              console.error('[AdminLeadsService] Error updating lead in Supabase fallback:', fallbackRes.error.message);
-              throw new Error(`Database update failed: ${fallbackRes.error.message}`);
-            }
-          } else {
-            data = fallbackRes.data;
-          }
-        } else {
-          console.error('[AdminLeadsService] Error updating lead in Supabase:', res.error.message);
+        if (mentionsRequiredFollowUpColumn(res.error)) {
+          console.error('[AdminLeadsService] Required schema column missing on leads update:', {
+            code: (res.error as any).code,
+            message: res.error.message
+          });
           throw new Error(`Database update failed: ${res.error.message}`);
         }
-      } else {
-        data = res.data;
+
+        if (isMissingColumnError(res.error)) {
+          const missingCol = extractMissingColumnName(res.error);
+          if (missingCol && OPTIONAL_RETRYABLE_COLUMNS.has(missingCol) && missingCol in attemptPayload) {
+            delete attemptPayload[missingCol];
+            continue;
+          }
+        }
+
+        console.error('[AdminLeadsService] Error updating lead in Supabase:', {
+          code: (res.error as any).code,
+          message: res.error.message
+        });
+        throw new Error(`Database update failed: ${res.error.message}`);
       }
 
       if (!data) {
         throw new Error(`Lead update failed: No record found with ID "${leadId}" or update was not permitted by security policies.`);
       }
 
-      // 4. Verify the database write: ensure data.status matches requested stage
+      // 4. Verify the database write: confirm canonical columns persisted in returned row
       if (targetStage !== undefined) {
         const returnedStatus = String(data.status || '').toLowerCase().trim();
         if (returnedStatus !== targetStage) {
@@ -821,38 +854,72 @@ class AdminLeadsService {
         }
       }
 
+      if (updates.nextFollowUpAt !== undefined) {
+        if (!('next_follow_up_at' in data)) {
+          throw new Error(
+            `Database update verification failed: 'next_follow_up_at' column was not returned by public.leads.`
+          );
+        }
+        const expectedIso = mappedPayload.next_follow_up_at as string | null;
+        if (expectedIso === null) {
+          if (data.next_follow_up_at !== null) {
+            throw new Error(
+              `Follow-up cancellation verification failed: expected NULL for next_follow_up_at but database returned "${data.next_follow_up_at}".`
+            );
+          }
+        } else {
+          const returnedMs = data.next_follow_up_at ? new Date(data.next_follow_up_at).getTime() : NaN;
+          const expectedMs = new Date(expectedIso).getTime();
+          if (isNaN(returnedMs) || Math.abs(returnedMs - expectedMs) > 1000) {
+            throw new Error(
+              `Follow-up persistence verification failed: database did not return the requested next_follow_up_at timestamp.`
+            );
+          }
+        }
+      }
+
+      if (updates.nextFollowUpRemark !== undefined && !('next_follow_up_remark' in data)) {
+        throw new Error(
+          `Database update verification failed: 'next_follow_up_remark' column was not returned by public.leads.`
+        );
+      }
+
+      if (updates.nextFollowUpNote !== undefined && !('next_follow_up_note' in data)) {
+        throw new Error(
+          `Database update verification failed: 'next_follow_up_note' column was not returned by public.leads.`
+        );
+      }
+
+      if (updates.lastContactedAt !== undefined) {
+        if (!('last_contacted_at' in data)) {
+          throw new Error(
+            `Database update verification failed: 'last_contacted_at' column was not returned by public.leads.`
+          );
+        }
+      }
+
       // 5. Map returned verified database row into domain model
+      // Follow-up & contact timestamps (next_follow_up_at, next_follow_up_remark, next_follow_up_note,
+      // last_contacted_at) are derived strictly from the confirmed Supabase row — never fabricated in memory.
       const updatedRecord = this.mapRowToCompleteLeadRecord(data);
 
-      // Preserve application-layer qualification calculations in memory
-      if (typeof updates.estimatedOpportunityValue === 'number') {
+      // Preserve application-layer qualification calculations in memory for client-only fields
+      if (typeof updates.estimatedOpportunityValue === 'number' && updatedRecord.qualification.estimatedOpportunityValue === undefined) {
         updatedRecord.qualification.estimatedOpportunityValue = updates.estimatedOpportunityValue;
         const prob = STAGE_PROBABILITIES[updatedRecord.qualification.opportunityStage] ?? 0.05;
         updatedRecord.qualification.weightedPipelineValue = Math.round(updates.estimatedOpportunityValue * prob);
       }
-      if (updates.currency) {
+      if (updates.currency && !updatedRecord.qualification.currency) {
         updatedRecord.qualification.currency = updates.currency;
       }
-      if (updates.nextAction) {
+      if (updates.nextAction && !updatedRecord.qualification.nextAction) {
         updatedRecord.qualification.nextAction = updates.nextAction;
       }
-      if (updates.assignedTo !== undefined) {
+      if (updates.assignedTo !== undefined && (!updatedRecord.qualification.assignedTo || updatedRecord.qualification.assignedTo === 'Unassigned')) {
         updatedRecord.qualification.assignedTo = updates.assignedTo;
       }
-      if (updates.internalNotes !== undefined) {
+      if (updates.internalNotes !== undefined && !updatedRecord.qualification.internalNotes) {
         updatedRecord.qualification.internalNotes = updates.internalNotes;
-      }
-      if (updates.lastContactedAt !== undefined) {
-        updatedRecord.qualification.lastContactedAt = updates.lastContactedAt || undefined;
-      }
-      if (updates.nextFollowUpAt !== undefined) {
-        updatedRecord.qualification.nextFollowUpAt = updates.nextFollowUpAt || undefined;
-      }
-      if (updates.nextFollowUpRemark !== undefined) {
-        updatedRecord.qualification.nextFollowUpRemark = updates.nextFollowUpRemark || undefined;
-      }
-      if (updates.nextFollowUpNote !== undefined) {
-        updatedRecord.qualification.nextFollowUpNote = updates.nextFollowUpNote || undefined;
       }
       if (updates.leadPriority !== undefined) {
         updatedRecord.qualification.leadPriority = updates.leadPriority;
@@ -889,7 +956,10 @@ class AdminLeadsService {
 
       return updatedRecord;
     } catch (error: any) {
-      console.error('[AdminLeadsService] Lead update exception:', error);
+      console.error('[AdminLeadsService] Lead update failed:', {
+        leadId: leadId.slice(0, 8),
+        message: error?.message || String(error)
+      });
       throw error;
     }
   }
@@ -924,7 +994,7 @@ class AdminLeadsService {
     const updatedLead = await this.updateLead(leadId, {
       nextFollowUpAt: isoDateTime,
       nextFollowUpRemark: remark,
-      nextFollowUpNote: note || undefined,
+      nextFollowUpNote: note ? note : (null as any),
       nextAction: remark
     });
 
@@ -976,7 +1046,7 @@ class AdminLeadsService {
     const updatedLead = await this.updateLead(leadId, {
       nextFollowUpAt: newIsoDateTime,
       nextFollowUpRemark: remark,
-      nextFollowUpNote: note || undefined,
+      nextFollowUpNote: note ? note : (null as any),
       nextAction: remark
     });
 
@@ -1145,8 +1215,15 @@ class AdminLeadsService {
         .single();
 
       if (res.error) {
-        // If optional extended columns fail on remote (code 42703 / column not found), retry with base schema columns
-        if (res.error.message?.includes('column') || (res.error as any).code === '42703') {
+        // If optional extended columns fail on remote (code 42703 / PGRST204), retry with base + follow-up columns
+        const errCode = String((res.error as any).code || '');
+        const errMsg = String(res.error.message || '');
+        const isMissingFollowUpCol = Boolean(
+          initialFollowUpIso &&
+          (errMsg.toLowerCase().includes('next_follow_up_at') || errMsg.toLowerCase().includes('next_follow_up_remark'))
+        );
+
+        if (!isMissingFollowUpCol && (errMsg.toLowerCase().includes('column') || errMsg.toLowerCase().includes('schema cache') || errCode === '42703' || errCode === 'PGRST204')) {
           console.warn('[AdminLeadsService] Retrying lead creation with canonical base columns:', res.error.message);
           const basePayload: Record<string, any> = {
             name: sanitizedName,
@@ -1166,8 +1243,20 @@ class AdminLeadsService {
             created_at: timestamp,
             updated_at: timestamp
           };
+          if (payload.assigned_to) {
+            basePayload.assigned_to = payload.assigned_to;
+          }
+          if (input.leadPriority) {
+            basePayload.lead_priority = input.leadPriority;
+          }
+          if (input.internalNotes) {
+            basePayload.internal_notes = input.internalNotes.trim();
+          }
           if (initialFollowUpIso) {
             basePayload.next_follow_up_at = initialFollowUpIso;
+            if (input.nextFollowUpRemark) {
+              basePayload.next_follow_up_remark = input.nextFollowUpRemark.trim();
+            }
           }
 
           const fallbackRes = await supabase
@@ -1238,30 +1327,40 @@ class AdminLeadsService {
 
       // Confirmed database row returned by Supabase with its genuine database UUID
       createdRecord = this.mapRowToCompleteLeadRecord(data);
+
+      // If an initial follow-up was requested but the RPC path did not persist it, persist explicitly via updateLead()
+      if (initialFollowUpIso && !createdRecord.qualification.nextFollowUpAt) {
+        createdRecord = await this.updateLead(createdRecord.leadId, {
+          nextFollowUpAt: initialFollowUpIso,
+          nextFollowUpRemark: input.nextFollowUpRemark?.trim() || 'Initial Follow-Up'
+        });
+      }
     } else {
       // Offline/mock development mode: use a valid RFC 4122 UUID v4
       const localUuid = generateUuid();
       createdRecord = this.mapRowToCompleteLeadRecord({ ...payload, id: localUuid });
     }
 
-    // Apply manual qualification attributes
-    createdRecord.updatedAt = timestamp;
+    // Apply manual qualification attributes (never fabricate follow-up timestamps when Supabase is connected)
+    createdRecord.updatedAt = createdRecord.updatedAt || timestamp;
     createdRecord.qualification.derivedLeadSource = 'admin_manual';
     createdRecord.qualification.opportunityStage = 'new';
     createdRecord.qualification.stageProbability = 0.05;
-    createdRecord.qualification.stageEnteredAt = timestamp;
-    createdRecord.qualification.stageChangedAt = timestamp;
+    createdRecord.qualification.stageEnteredAt = createdRecord.qualification.stageEnteredAt || timestamp;
+    createdRecord.qualification.stageChangedAt = createdRecord.qualification.stageChangedAt || timestamp;
 
-    if (typeof input.estimatedOpportunityValue === 'number') {
+    if (typeof input.estimatedOpportunityValue === 'number' && createdRecord.qualification.estimatedOpportunityValue === undefined) {
       createdRecord.qualification.estimatedOpportunityValue = input.estimatedOpportunityValue;
       createdRecord.qualification.weightedPipelineValue = Math.round(input.estimatedOpportunityValue * 0.05);
     }
-    if (input.currency) createdRecord.qualification.currency = input.currency;
-    if (input.assignedTo) createdRecord.qualification.assignedTo = input.assignedTo;
-    if (input.leadPriority) createdRecord.qualification.leadPriority = input.leadPriority;
-    if (input.nextAction) createdRecord.qualification.nextAction = input.nextAction;
-    if (input.internalNotes) createdRecord.qualification.internalNotes = input.internalNotes;
-    if (initialFollowUpIso) {
+    if (input.currency && !createdRecord.qualification.currency) createdRecord.qualification.currency = input.currency;
+    if (input.assignedTo && (!createdRecord.qualification.assignedTo || createdRecord.qualification.assignedTo === 'Unassigned')) {
+      createdRecord.qualification.assignedTo = input.assignedTo;
+    }
+    if (input.leadPriority && !createdRecord.qualification.leadPriority) createdRecord.qualification.leadPriority = input.leadPriority;
+    if (input.nextAction && !createdRecord.qualification.nextAction) createdRecord.qualification.nextAction = input.nextAction;
+    if (input.internalNotes && !createdRecord.qualification.internalNotes) createdRecord.qualification.internalNotes = input.internalNotes;
+    if (!supabase && initialFollowUpIso) {
       createdRecord.qualification.nextFollowUpAt = initialFollowUpIso;
       createdRecord.qualification.nextFollowUpRemark = input.nextFollowUpRemark || 'Initial Follow-Up';
     }
